@@ -117,6 +117,10 @@ def run_turn_stream(app, deps: AgentDeps, state: AgentState, user_message: str,
     so the UI can show what the agent is doing while it works."""
     state.messages.append({"role": "user", "content": user_message})
     state = maybe_summarize(state, deps.llm)
+    # stream_mode="values" yields the INPUT state first; without this reset the
+    # previous turn's activity would be re-emitted (seen in user testing as a
+    # thinking trace carried into the next message).
+    state.activity, state.reply, state.notices = [], "", []
     seen = 0
     latest = state
     for step in app.stream(state, stream_mode="values"):

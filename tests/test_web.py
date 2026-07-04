@@ -162,3 +162,32 @@ class TestStreamAndSearch:
         assert any(c.startswith("[web search") for c in state.kb_context)
         assert "MegaLLM-7000" in state.reply_prefix
         assert any("Searching the web" in a for a in state.activity)
+
+    def test_activity_not_carried_into_next_turn(self):
+        """Regression: stream_mode='values' yields the input state first; stale
+        activity from the previous turn must not be re-emitted."""
+        from whichmodel.agent.graph import build_graph, run_turn_stream
+        llm = queue({"task_category": "coding"}, {"questions": ["Budget?"]},
+                    {}, {"questions": ["Cloud or local?"]})
+        deps = AgentDeps(
+            llm=llm, retriever=BM25Retriever(load_kb(ROOT / "kb")),
+            conn=catalog.connect(ROOT / "data" / "models.db"),
+            db_path=str(ROOT / "data" / "models.db"),
+            snippets_path=ROOT / "data" / "hardware_snippets.yaml")
+        graph = build_graph(deps)
+        from whichmodel.agent.state import AgentState
+        events1, events2 = [], []
+        state = run_turn_stream(graph, deps, AgentState(), "coding help", events1.append)
+        assert any("knowledge base" in e for e in events1)
+        state = run_turn_stream(graph, deps, state, "hmm not sure", events2.append)
+        # every event in turn 2 must be fresh, not a replay of turn 1's list
+        assert len(events2) <= len(state.activity)
+        assert events2 == state.activity
+
+    def test_internal_notices_not_leaked(self):
+        from whichmodel.web.app import _friendly_notices
+        out = _friendly_notices(["recommendation_fallback", "budget_relaxed",
+                                 "Detected: 16GB RAM, Apple M2"])
+        assert "recommendation_fallback" not in out
+        assert any("cheapest capable" in n for n in out)
+        assert any("Detected" in n for n in out)

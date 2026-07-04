@@ -98,12 +98,33 @@ async def chat(req: ChatRequest, response: Response,
     return ChatResponse(**_final_payload(state, deps))
 
 
+# Internal notice keys mapped to user-facing text; unmapped keys are shown
+# only if they already read as sentences (e.g. the hardware-detected note).
+NOTICE_TEXT = {
+    "budget_relaxed": "Nothing fit your stated budget exactly, so I am showing the "
+                      "cheapest capable options.",
+    "recommendation_fallback": None,  # internal: deterministic plan was used
+    "extraction_failed": None,
+}
+
+
+def _friendly_notices(notices: list[str]) -> list[str]:
+    out = []
+    for n in notices:
+        if n in NOTICE_TEXT:
+            if NOTICE_TEXT[n]:
+                out.append(NOTICE_TEXT[n])
+        elif " " in n:  # human-readable already
+            out.append(n)
+    return out
+
+
 def _final_payload(state: AgentState, deps) -> dict:
     return ChatResponse(
         reply=state.reply,
         phase=state.phase,
         recommendation=state.recommendation.model_dump() if state.recommendation else None,
-        notices=[n for n in state.notices if not n.endswith("_failed")],
+        notices=_friendly_notices(state.notices),
         data_age=catalog.data_age(deps.conn),
     ).model_dump()
 
