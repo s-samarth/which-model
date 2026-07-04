@@ -28,6 +28,8 @@ budget: copy the stated number into budget_amount and set budget_currency to \
 "usd" or "inr". Never convert currencies yourself.
 context_need: short (chat), medium (single documents), long (books, codebases, \
 100+ pages). usage_level: light, moderate, heavy.
+hardware: fill any stated fields (ram_gb, vram_gb, gpu, os one of \
+macos|windows|linux). "MacBook" or "Mac" means os="macos".
 
 Current requirements (only fill gaps or correct with new evidence):
 {requirements}
