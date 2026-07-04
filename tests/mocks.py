@@ -20,6 +20,12 @@ class MockLLM:
         item = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
         return json.dumps(item) if isinstance(item, dict) else str(item)
 
+    def stream(self, system: str, messages: list[dict], *, max_tokens: int = 1200):
+        text = self.complete(system, messages, max_tokens=max_tokens)
+        mid = max(1, len(text) // 2)
+        yield text[:mid]
+        yield text[mid:]
+
 
 def queue(*items) -> MockLLM:
     return MockLLM(responses=list(items))

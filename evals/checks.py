@@ -9,27 +9,27 @@ from whichmodel.schemas import Recommendation
 from whichmodel.tools.hardware import load_snippets
 
 
-def _rec_prose(state: AgentState) -> str:
+def _final_reply(state: AgentState) -> str:
     """The final answer only: earlier turns were grounded against earlier
     candidate sets (a pivot legitimately changes them)."""
-    parts = [m["content"] for m in state.messages if m["role"] == "assistant"][-1:]
-    rec = state.recommendation
-    if rec:
-        parts += [p.why for p in rec.picks] + rec.assumptions + rec.caveats
-    return "\n".join(parts)
+    replies = [m["content"] for m in state.messages if m["role"] == "assistant"]
+    return replies[-1] if replies else ""
 
 
 def check_grounding(state: AgentState, db_path: str, conn: sqlite3.Connection) -> str | None:
-    """(a) Every model named in the final answer exists in candidates/DB picks."""
-    rec = state.recommendation
-    if rec is None:
+    """(a) Every model named in the final answer is a grounded candidate.
+
+    A visible self-correction ("Correction: I mentioned X...") counts as
+    handled: the mechanism worked and told the user.
+    """
+    if state.phase != Phase.done or not state.candidates:
         return None
-    for pick in rec.picks:
-        if not conn.execute("SELECT 1 FROM models WHERE id=?", (pick.model_id,)).fetchone():
-            return f"pick {pick.model_id} not in DB"
+    text = _final_reply(state)
     allowed = {m.id for m in state.candidates}
-    violations = foreign_model_mentions(_rec_prose(state), db_path, allowed)
-    return f"foreign models mentioned: {violations}" if violations else None
+    violations = foreign_model_mentions(text, db_path, allowed)
+    if violations and "Correction:" not in text:
+        return f"foreign models mentioned uncorrected: {violations}"
+    return None
 
 
 def check_reached_recommendation(state: AgentState, max_turns: int,
@@ -87,23 +87,27 @@ def check_schema(state: AgentState) -> str | None:
 
 
 def check_expectations(state: AgentState, expect: dict) -> str | None:
-    """Scenario-specific expectations on the picks."""
-    rec = state.recommendation
-    if rec is None or not rec.picks:
-        return "no recommendation payload"
-    by_id = {m.id: m for m in state.candidates}
-    for pick in rec.picks:
-        m = by_id.get(pick.model_id)
-        if m is None:
-            return f"pick {pick.model_id} not among candidates"
-        if expect.get("picks_local") and not m.available_local:
-            return f"{m.id} is not locally runnable"
-        if expect.get("picks_support_image") and "image" not in m.input_modalities:
-            return f"{m.id} does not accept images"
-        cap = expect.get("max_pick_monthly_usd")
-        if cap is not None and (pick.monthly_cost_usd or 0) > cap:
-            return f"{m.id} costs ${pick.monthly_cost_usd}/mo over cap {cap}"
-        budget = expect.get("picks_within_budget")
-        if budget is not None and (pick.monthly_cost_usd or 0) > budget:
-            return f"{m.id} exceeds budget {budget}"
+    """Scenario-specific expectations on the composed answer.
+
+    The answer is free-form Markdown, so expectations verify that the final
+    reply names at least one suitable candidate; constraint filtering (budget,
+    modality, memory) is enforced upstream by find_candidates and covered by
+    unit tests.
+    """
+    if state.phase != Phase.done:
+        return None  # reached-recommendation check reports this case
+    if not state.candidates:
+        return "no candidates behind the final answer"
+    text = _final_reply(state).lower()
+    def mentioned(m):
+        return m.name.lower() in text or m.id.lower() in text \
+            or m.id.split("/")[-1].lower() in text
+    named = [m for m in state.candidates if mentioned(m)]
+    if not named:
+        return "final answer names no catalog candidate"
+    if expect.get("picks_local") and not any(m.available_local for m in named):
+        return "answer names no locally-runnable candidate"
+    if expect.get("picks_support_image") and not any(
+            "image" in m.input_modalities for m in named):
+        return "answer names no image-capable candidate"
     return None

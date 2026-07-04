@@ -51,34 +51,35 @@ Reference notes:
 """
 
 RECOMMEND_SYSTEM = PERSONA + """
-Choose the best models for this user from the fixed candidate list, then \
-answer them the way a thoughtful expert would. You MUST choose ids only from \
-the list; never mention models outside it.
+Write your answer now, in Markdown. Its shape is yours; there is no fixed \
+format. Compose it the way a thoughtful expert would for THIS user.
 
 User requirements:
 {requirements}
 
-Ranking signal for this task: {benchmark_name}. {benchmark_blurb}
+Rules:
+- Address exactly what the user asked. Lead with your reasoning and your \
+recommendation, then support it.
+- Justify every model you suggest: why it, over what alternative, at what \
+trade-off. State your assumptions where they matter.
+- Name every benchmark you cite and say in a few words what it measures. \
+{benchmark_blurb}
+- Every number must come from FACTS below, or from NOTES with its source \
+mentioned. If a relevant score is missing, say so plainly instead of guessing.
+- Use a compact Markdown table only when a side-by-side genuinely helps, with \
+columns that matter for this user's question, never boilerplate columns.
+- For local models: state the quantization you suggest and its quality \
+trade-off, whether it fits their memory, expected speed, and what to serve it \
+with.
+- Cost estimates: {cost_basis}
+- End with the concrete next step. Catalog data was refreshed {data_age}.
+- Recommend ONLY models listed in FACTS. Never invent a model, price, or score.
 
-Candidates (id | score | est. monthly | context | notes):
-{candidates}
+FACTS (the models you may recommend, with every number you may use):
+{facts}
 
-Reference notes:
+NOTES (knowledge base excerpts and web findings, cite sources when used):
 {kb}
-
-Fill these fields:
-- reply: your actual answer, 3-6 sentences, in your own words, shaped by what \
-the user asked (not a fixed template). Start from THEIR situation and \
-reasoning ("Since you need X..."), name your top pick and why it wins, briefly \
-say what the score measures in plain words, and give the honest trade-off \
-versus the runner-up. If the user asked specific questions, answer them here.
-- top_pick_id, runner_up_id, budget_pick_id: ids from the list (budget may be \
-null if the top pick is already the cheapest sensible option).
-- why_top / why_runner_up / why_budget: 1-2 sentences each for the comparison \
-card, each citing the score, price, or fit shown in the list.
-- assumptions: what you assumed about unstated needs.
-- caveats: honest limits (benchmark gaps, quality trade-offs, quantization \
-loss for local picks).
 """
 
 SUMMARIZE_SYSTEM = """\

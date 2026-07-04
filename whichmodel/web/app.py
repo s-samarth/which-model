@@ -145,7 +145,13 @@ async def chat_stream(req: ChatRequest, wm_session: str | None = Cookie(default=
     def emit(text: str) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, {"type": "activity", "text": text})
 
+    def emit_token(text: str) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, {"type": "token", "text": text})
+
     def worker():
+        from whichmodel.agent import streaming as tok_stream
+
+        tok_stream.token_emitter.set(emit_token)  # this worker thread only
         try:
             return run_turn_stream(app.state.graph, deps, state, req.message, emit)
         finally:

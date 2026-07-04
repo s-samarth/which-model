@@ -43,9 +43,9 @@ class TestEndpoints:
         llm = queue(
             {"task_category": "chat_assistant", "task_description": "shop bot"},
             {"questions": ["Cloud service or your own computer?"]},
-            {"deployment": "api", "budget_monthly_usd": 10, "usage_level": "light",
-             "wants_recommendation_now": True},
-            {"top_pick_id": "WILL_FALLBACK", "why_top": "x"},
+            {"deployment": "api", "budget_amount": 10, "budget_currency": "usd",
+             "usage_level": "light", "wants_recommendation_now": True},
+            "For a shop chatbot at your budget, here is what I would do...",
         )
         client = make_client(llm)
         try:
@@ -57,8 +57,7 @@ class TestEndpoints:
             r2 = client.post("/chat", json={"message": "cloud is fine, $10 a month, just pick"})
             body = r2.json()
             assert body["phase"] == "done"
-            assert body["recommendation"] is not None
-            assert body["recommendation"]["picks"]
+            assert "shop chatbot" in body["reply"]
             assert body["data_age"]
         finally:
             client.__exit__(None, None, None)
@@ -191,3 +190,27 @@ class TestStreamAndSearch:
         assert "recommendation_fallback" not in out
         assert any("cheapest capable" in n for n in out)
         assert any("Detected" in n for n in out)
+
+    def test_stream_emits_tokens_for_recommendation(self):
+        """The composed answer must arrive as token events, then final."""
+        llm = queue(
+            {"task_category": "coding", "deployment": "api",
+             "wants_recommendation_now": True},
+            "Here is my streamed answer about coding models.",
+        )
+        client = make_client(llm)
+        try:
+            import json as j
+            events = []
+            with client.stream("POST", "/chat/stream",
+                               json={"message": "coding model, just pick"}) as resp:
+                for line in resp.iter_lines():
+                    if line.startswith("data: "):
+                        events.append(j.loads(line[6:]))
+            tokens = "".join(e["text"] for e in events if e["type"] == "token")
+            final = events[-1]
+            assert final["type"] == "final"
+            assert "streamed answer" in tokens
+            assert final["reply"] == tokens.strip()
+        finally:
+            client.__exit__(None, None, None)

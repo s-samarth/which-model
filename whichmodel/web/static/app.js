@@ -1,8 +1,7 @@
 /* Which Model? chat frontend: transport, composer, activity display.
-   The recommendation card renderer lives in rec-card.js.
-   Streaming: POST /chat/stream returns Server-Sent Events; we read the body
-   with a ReadableStream and show "activity" events (what the agent is doing)
-   live, then render the "final" event. Falls back to plain POST /chat. */
+   Answers are LLM-composed Markdown (rendered by md.js), streamed token by
+   token over Server-Sent Events; "activity" events show what the agent is
+   doing while it works. Falls back to plain POST /chat. */
 
 const chat = document.getElementById("chat");
 const form = document.getElementById("composer");
@@ -47,6 +46,35 @@ function addMessage(role, text) {
   return msg;
 }
 
+/* A bot message that grows as tokens stream in, re-rendered as Markdown. */
+function streamingMessage() {
+  const msg = el("div", "msg bot md streaming");
+  chat.appendChild(msg);
+  let buffer = "";
+  let scheduled = false;
+  const rerender = () => {
+    scheduled = false;
+    msg.replaceChildren(renderMarkdown(buffer));
+    msg.scrollIntoView({ block: "end" });
+  };
+  return {
+    push(text) {
+      buffer += text;
+      if (!scheduled) {
+        scheduled = true;
+        requestAnimationFrame(rerender);
+      }
+    },
+    finish(finalText) {
+      buffer = finalText || buffer;
+      msg.classList.remove("streaming");
+      msg.replaceChildren(renderMarkdown(buffer));
+    },
+    empty: () => buffer.length === 0,
+    remove: () => msg.remove(),
+  };
+}
+
 /* The live activity panel: one line per agent step, newest highlighted. */
 function activityPanel() {
   const box = el("div", "activity");
@@ -65,15 +93,19 @@ function activityPanel() {
   };
 }
 
-function handleFinal(body) {
+function handleFinal(body, streamed) {
   for (const n of body.notices || []) addMessage("notice", n);
-  if (body.reply) addMessage("bot", body.reply);
-  if (body.recommendation) renderRecommendation(body.recommendation);
+  if (streamed && !streamed.empty()) {
+    streamed.finish(body.reply);
+  } else {
+    if (streamed) streamed.remove();
+    if (body.reply) addMessage("bot", body.reply);
+  }
   if (body.data_age) dataAge.textContent = `data refreshed ${body.data_age}`;
   recommendBtn.hidden = body.phase === "done";
 }
 
-async function streamChat(text, activity) {
+async function streamChat(text, activity, streamed) {
   const resp = await fetch("/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,7 +126,10 @@ async function streamChat(text, activity) {
       if (!chunk.startsWith("data: ")) continue;
       const event = JSON.parse(chunk.slice(6));
       if (event.type === "activity") activity.add(event.text);
-      else if (event.type === "final") return event;
+      else if (event.type === "token") {
+        activity.settle();
+        streamed.push(event.text);
+      } else if (event.type === "final") return event;
     }
   }
   throw new Error("stream ended without a final event");
@@ -105,10 +140,11 @@ async function sendMessage(text) {
   send.disabled = true;
   recommendBtn.disabled = true;
   const activity = activityPanel();
+  const streamed = streamingMessage();
   try {
     let body;
     try {
-      body = await streamChat(text, activity);
+      body = await streamChat(text, activity, streamed);
     } catch {
       const resp = await fetch("/chat", {
         method: "POST",
@@ -118,9 +154,10 @@ async function sendMessage(text) {
       body = await resp.json();
     }
     activity.settle();
-    handleFinal(body);
+    handleFinal(body, streamed);
   } catch (err) {
     activity.remove();
+    streamed.remove();
     addMessage("bot", "Something went wrong reaching the server. Please try again.");
   } finally {
     send.disabled = false;

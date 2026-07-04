@@ -31,6 +31,10 @@ class LLMClient(Protocol):
     def complete(self, system: str, messages: list[dict], *, max_tokens: int = 700,
                  json_mode: bool = False) -> str: ...
 
+    def stream(self, system: str, messages: list[dict], *, max_tokens: int = 1200):
+        """Yield text chunks as they generate."""
+        ...
+
 
 class OpenAICompatClient:
     """LLMClient against any OpenAI-compatible /chat/completions endpoint."""
@@ -78,6 +82,25 @@ class OpenAICompatClient:
                 temperature=self._temperature, max_tokens=max_tokens, **kwargs,
             )
         return resp.choices[0].message.content or ""
+
+    def stream(self, system: str, messages: list[dict], *, max_tokens: int = 1200):
+        """Yield content chunks from a streaming completion."""
+        kwargs: dict = {}
+        extra: dict = {}
+        if self._reasoning_effort:
+            extra["reasoning_effort"] = self._reasoning_effort
+        if self._keep_alive:
+            extra["keep_alive"] = self._keep_alive
+        if extra:
+            kwargs["extra_body"] = extra
+        resp = self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "system", "content": system}, *messages],
+            temperature=self._temperature, max_tokens=max_tokens, stream=True, **kwargs,
+        )
+        for event in resp:
+            if event.choices and event.choices[0].delta:
+                yield event.choices[0].delta.content or ""
 
 
 def _strip_fences(text: str) -> str:

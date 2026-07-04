@@ -74,72 +74,55 @@ class TestHardwareProbe:
     def test_probe_output_parsed_and_recommendation_follows(self, retriever):
         llm = queue(
             {"task_category": "chat_assistant", "deployment": "local"},
-            {"top_pick_id": "PLACEHOLDER", "why_top": "Best fit."},
+            "Given your 16GB Mac, a small local model is the right call.",
         )
         deps = make_deps(llm, retriever)
         state = turn(deps, AgentState(), "offline chatbot on my mac")
-        # user pastes probe output; PLACEHOLDER plan will fail validation and
-        # the deterministic fallback must kick in with grounded picks
         state = turn(deps, state, "Chip: Apple M2\n      Memory: 16 GB\n15.5")
         assert state.requirements.hardware.ram_gb == 16
         assert state.phase == Phase.done
-        assert state.recommendation is not None
-        for pick in state.recommendation.picks:
-            assert pick.model_id in {m.id for m in state.candidates}
+        assert state.candidates, "answer must be grounded in candidates"
+        assert "16GB Mac" in state.reply
 
 
 class TestRecommendation:
     def test_impatient_user_gets_recommendation_first_turn(self, retriever):
-        llm = queue(
-            {"task_category": None},
-            {"top_pick_id": "BAD", "why_top": "x"},
-        )
+        llm = queue({"task_category": None}, "My pick given what I know so far...")
         deps = make_deps(llm, retriever)
         state = turn(deps, AgentState(), "just tell me the best model")
         assert state.phase == Phase.done
-        assert state.recommendation is not None
-        assert len(state.recommendation.picks) >= 1
+        assert state.reply
+        assert state.candidates
 
-    def test_valid_llm_plan_used_and_costs_attached(self, retriever):
-        conn = catalog.connect(SEED_DB)
-        from whichmodel.schemas import Deployment, Requirements, TaskCategory
-        cands = catalog.find_candidates(
-            conn, Requirements(task_category=TaskCategory.coding, deployment=Deployment.api))
-        top, runner = cands[0], cands[1]
+    def test_facts_block_carries_grounded_numbers(self, retriever):
+        """The prompt's FACTS block must contain real scores and prices so the
+        LLM has every number it may use."""
         llm = queue(
-            {"task_category": "coding", "deployment": "api", "budget_monthly_usd": 100,
-             "usage_level": "moderate", "wants_recommendation_now": True},
-            {"top_pick_id": top.id, "runner_up_id": runner.id,
-             "why_top": f"{top.name} scores highest.", "why_runner_up": "Close second.",
-             "assumptions": [], "caveats": ["Scores compress at the top."]},
+            {"task_category": "coding", "deployment": "api", "budget_amount": 100,
+             "budget_currency": "usd", "usage_level": "moderate",
+             "wants_recommendation_now": True},
+            "Grounded answer citing agentic coding scores.",
         )
         deps = make_deps(llm, retriever)
-        state = turn(deps, AgentState(), "coding assistant, $100/mo, cloud is fine, just pick")
-        rec = state.recommendation
-        assert rec.picks[0].model_id == top.id
-        assert rec.picks[0].monthly_cost_inr == round((rec.picks[0].monthly_cost_usd or 0) * 84)
-        assert rec.data_age
-        assert rec.comparison and rec.comparison[0]["score"] is not None
+        state = turn(deps, AgentState(), "coding assistant, $100/mo, cloud, just pick")
+        assert state.phase == Phase.done
+        system = llm.calls[-1]["system"]
+        assert "FACTS" in system
+        assert "agentic coding" in system
+        top = state.candidates[0]
+        assert top.id in system
+        assert f"{top.scores['livebench_agentic_coding']:.0f}/100" in system
 
-    def test_grounding_violation_triggers_retry_then_fallback(self, retriever):
-        conn = catalog.connect(SEED_DB)
-        from whichmodel.schemas import Deployment, Requirements, TaskCategory
-        cands = catalog.find_candidates(
-            conn, Requirements(task_category=TaskCategory.coding, deployment=Deployment.api))
-        foreign = "anthropic/claude-3-haiku"  # in DB, surely not a top coding candidate
-        assert foreign not in {c.id for c in cands}
-        bad_plan = {"top_pick_id": cands[0].id,
-                    "why_top": "Better than Claude 3 Haiku by miles."}
+    def test_foreign_model_mention_gets_visible_correction(self, retriever):
         llm = queue(
             {"task_category": "coding", "deployment": "api",
              "wants_recommendation_now": True},
-            bad_plan, bad_plan,  # violates twice -> deterministic fallback
+            "You should really use Claude 3 Haiku for this.",  # not a candidate
         )
         deps = make_deps(llm, retriever)
         state = turn(deps, AgentState(), "coding model, cloud, just pick one")
-        assert "recommendation_fallback" in state.notices
-        prose = " ".join(p.why for p in state.recommendation.picks)
-        assert "haiku" not in prose.lower()
+        assert "Correction:" in state.reply
+        assert "claude-3-haiku" in state.reply
 
     def test_recommendation_by_turn_six_regardless(self, retriever):
         llm = queue({})  # extraction never learns anything
@@ -150,7 +133,7 @@ class TestRecommendation:
             if state.phase == Phase.done:
                 break
         assert state.phase == Phase.done
-        assert state.recommendation is not None
+        assert state.reply, "must still answer with assumptions stated"
 
 
 class TestSummarization:
@@ -207,38 +190,3 @@ class TestFeedbackRegressions:
         assert q in state.asked_questions
         state = turn(deps, state, "honestly I am not sure about any of this")
         assert state.reply != q, "verbatim repeat must be suppressed"
-
-    def test_plan_sanitizer_fixes_low_ranked_runner_up(self, retriever):
-        conn = catalog.connect(SEED_DB)
-        from whichmodel.schemas import Deployment, Requirements, TaskCategory
-        cands = catalog.find_candidates(
-            conn, Requirements(task_category=TaskCategory.chat_assistant,
-                               deployment=Deployment.api))
-        low = cands[-1]  # worst-ranked candidate
-        llm = queue(
-            {"task_category": "chat_assistant", "deployment": "api",
-             "wants_recommendation_now": True},
-            {"top_pick_id": cands[0].id, "runner_up_id": low.id,
-             "why_top": "Best score.", "why_runner_up": "Vibes."},
-        )
-        deps = make_deps(llm, retriever)
-        state = turn(deps, AgentState(), "chat model, cloud, just pick")
-        runner = next(p for p in state.recommendation.picks if p.role == "runner_up")
-        top4 = {m.id for m in state.candidates[:4]}
-        assert runner.model_id in top4
-
-    def test_payload_has_explanations_and_ordered_table(self, retriever):
-        llm = queue({"task_category": "coding", "deployment": "api",
-                     "wants_recommendation_now": True},
-                    {"top_pick_id": "Z", "why_top": "z"})
-        deps = make_deps(llm, retriever)
-        state = turn(deps, AgentState(), "coding model, cloud, just pick")
-        rec = state.recommendation
-        assert "LiveBench" in rec.score_legend
-        assert "tokens per month" in rec.cost_basis
-        pick_ids = [p.model_id for p in rec.picks]
-        table_ids = [r["model_id"] for r in rec.comparison]
-        assert table_ids[: len(pick_ids)] == pick_ids, "picks must lead the table"
-        for p in rec.picks:
-            assert p.get_started, "every pick needs a concrete first step"
-            assert p.mode in ("api", "local")

@@ -8,8 +8,9 @@ Existing tools (quiz sites, wizard forms, CLI pickers) make you fill out a form.
 
 1. Open the app. Type: "offline chatbot on my MacBook, fully private".
 2. The agent asks nothing you cannot answer, shows what it is doing while it thinks (reading its knowledge base, querying the catalog, searching the web), and never repeats a question. A "Recommend now" button skips the rest of the questions whenever you are done explaining.
-3. When your hardware matters, it hands you one safe, pre-written terminal command: "run this and paste the output". It detects your RAM and chip, filters the catalog to models that actually fit, and renders a card: top pick, runner-up, budget pick, how to run each one (cloud signup or `ollama pull`), a comparison table with an explained score, monthly cost with the estimation basis spelled out, and the assumptions it made.
-4. Every model name, price, and score traces to a row in a local SQLite catalog refreshed daily from OpenRouter and LiveBench. Ask about a model it does not carry and it says so, backed by a quick sourced web search, instead of guessing. The brain is a small local model (Qwen3.5 4B via Ollama); it is never trusted to recall facts.
+3. When your hardware matters, it hands you one safe, pre-written terminal command: "run this and paste the output". It detects your RAM and chip and filters the catalog to models that actually fit.
+4. The answer streams in as a real written recommendation, not a form: reasoning first, picks justified against alternatives, benchmarks named and explained, quantization and memory trade-offs for local models, setup commands, honest caveats, and tables only where they help. There is no fixed answer template; the model composes each answer from a deterministic FACTS block, so every number is real.
+5. Every model name, price, and score traces to a row in a local SQLite catalog refreshed daily from OpenRouter and LiveBench, supplemented by sourced web searches when scores are missing or you ask about something the catalog lacks. The brain is a small local model (Qwen3.5 4B via Ollama); it is never trusted to recall facts.
 
 ## Quickstart
 

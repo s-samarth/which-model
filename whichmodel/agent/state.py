@@ -89,20 +89,6 @@ def merge_patch(req: Requirements, patch: RequirementsPatch,
     return Requirements(**data)
 
 
-class PickPlan(BaseModel):
-    """The recommend LLM's output: candidate ids, a conversational reply, whys."""
-
-    reply: str = ""  # the narrative answer shown to the user, reasoning first
-    top_pick_id: str
-    runner_up_id: str | None = None
-    budget_pick_id: str | None = None
-    why_top: str
-    why_runner_up: str | None = None
-    why_budget: str | None = None
-    assumptions: list[str] = Field(default_factory=list)
-    caveats: list[str] = Field(default_factory=list)
-
-
 class ClarifyingQuestions(BaseModel):
     """A brief human acknowledgement plus the next 1-2 questions."""
 

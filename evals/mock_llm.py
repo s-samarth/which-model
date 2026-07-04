@@ -28,12 +28,27 @@ class HeuristicLLM:
         text = " ".join(m["content"].lower() for m in messages if m["role"] == "user")
         if "extract structured requirements" in system:
             return json.dumps(self._extract(text))
-        if "clarifying" in system:
-            return json.dumps({"questions": [
+        if "not given you enough" in system:
+            return json.dumps({"acknowledgement": "Got it.", "questions": [
                 "Would you rather run it on your own computer, or use a cloud service?"]})
-        if "pick the best AI models" in system:
-            return json.dumps(self._plan(system))
+        if "FACTS" in system:
+            return self._answer(system)
         return "Summary: user wants help choosing a model."
+
+    def stream(self, system: str, messages: list[dict], *, max_tokens: int = 1200):
+        yield self.complete(system, messages, max_tokens=max_tokens)
+
+    def _answer(self, system: str) -> str:
+        entries = re.findall(r"^\d+\. (.+?) \[([\w./:~-]+)\]", system, re.M)
+        if not entries:
+            return "I could not compose an answer from the facts."
+        name, mid = entries[0]
+        lines = [f"Based on your needs, I recommend **{name}** ({mid}); it leads the "
+                 "candidates on the task-relevant benchmark shown in my catalog."]
+        if len(entries) > 1:
+            lines.append(f"A solid alternative is {entries[1][0]} ({entries[1][1]}).")
+        lines.append("Next step: try it on a few of your real prompts.")
+        return "\n\n".join(lines)
 
     def _extract(self, text: str) -> dict:
         patch: dict = {}
@@ -63,12 +78,3 @@ class HeuristicLLM:
             patch["language_needs"] = "Hindi"
         return patch
 
-    def _plan(self, system: str) -> dict:
-        ids = re.findall(r"^([a-z0-9~][\w./:-]*) \| score", system, re.M)
-        plan = {"top_pick_id": ids[0] if ids else "none",
-                "why_top": "Highest score in the candidate list.",
-                "assumptions": [], "caveats": []}
-        if len(ids) > 1:
-            plan["runner_up_id"] = ids[1]
-            plan["why_runner_up"] = "Strong alternative from the list."
-        return plan
