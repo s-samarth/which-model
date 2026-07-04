@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     kb_dir: Path = Path("kb")
     snippets_path: Path = Path("data/hardware_snippets.yaml")
 
+    # Retrieval: hybrid (BM25 + embeddings, default), bm25, or embedding.
+    # Hybrid degrades to BM25 automatically if the embedding model is missing.
+    retriever_backend: str = "hybrid"
+    embed_model_name: str = "nomic-embed-text"
+    embed_cache_path: Path = Path("data/kb_embeddings.json")
+
+    # Web search: "ddgs" (DuckDuckGo, no key) or "off".
+    web_search: str = "ddgs"
+
     # Server
     host: str = "127.0.0.1"
     port: int = 8000

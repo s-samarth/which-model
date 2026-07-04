@@ -58,3 +58,67 @@ class TestSearch:
     def test_nonsense_query_returns_gracefully(self, retriever):
         docs = retriever.search("qwzyx blorptangle", k=3)
         assert docs == []
+
+
+class FakeEmbedding:
+    """Deterministic vectors: count occurrences of theme words."""
+
+    THEMES = ["coding", "local", "cost", "image", "hindi", "summar"]
+
+    def embed(self, texts):
+        return [[float(t.lower().count(w)) + 0.01 for w in self.THEMES] for t in texts]
+
+
+class TestEmbeddingRetriever:
+    def _make(self, tmp_path):
+        from whichmodel.retrieval.embedding import EmbeddingRetriever
+        docs = load_kb(KB_DIR)
+        return EmbeddingRetriever(docs, FakeEmbedding(), tmp_path / "cache.json"), docs
+
+    def test_search_surfaces_theme_match(self, tmp_path):
+        r, _ = self._make(tmp_path)
+        docs = r.search("coding coding coding", k=3, category="taxonomy")
+        assert docs, "no results"
+        assert docs[0].name == "taxonomy/coding"
+        assert all(d.category == "taxonomy" for d in docs)
+
+    def test_cache_written_and_reused(self, tmp_path):
+        import json as j
+        r1, docs = self._make(tmp_path)
+        cache = j.loads((tmp_path / "cache.json").read_text())
+        assert len(cache) == len(docs)
+
+        class ExplodingBackend:
+            def embed(self, texts):
+                raise AssertionError("must not re-embed cached docs")
+
+        from whichmodel.retrieval.embedding import EmbeddingRetriever
+        EmbeddingRetriever(docs, ExplodingBackend(), tmp_path / "cache.json")
+
+    def test_query_failure_returns_empty(self, tmp_path):
+        r, docs = self._make(tmp_path)
+        r._backend = type("B", (), {"embed": lambda self, t: 1 / 0})()
+        assert r.search("anything") == []
+
+
+class TestHybridRetriever:
+    def test_rrf_fuses_both_rankings(self, tmp_path):
+        from whichmodel.retrieval.embedding import EmbeddingRetriever
+        from whichmodel.retrieval.hybrid import HybridRetriever
+        docs = load_kb(KB_DIR)
+        hybrid = HybridRetriever(
+            BM25Retriever(docs),
+            EmbeddingRetriever(docs, FakeEmbedding(), tmp_path / "c.json"))
+        names = [d.name for d in hybrid.search("how much RAM for local coding models", k=3)]
+        assert "guides/local-inference" in names
+        assert hybrid.get("taxonomy/coding") is not None
+
+    def test_factory_degrades_to_bm25_without_endpoint(self, monkeypatch, tmp_path):
+        from whichmodel.config import Settings
+        from whichmodel.retrieval.hybrid import build_retriever
+        docs = load_kb(KB_DIR)
+        settings = Settings(openai_base_url="http://localhost:1", # nothing listens
+                            embed_cache_path=tmp_path / "c.json",
+                            retriever_backend="hybrid")
+        r = build_retriever(docs, settings)
+        assert isinstance(r, BM25Retriever)

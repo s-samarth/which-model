@@ -19,7 +19,7 @@ from whichmodel.agent import AgentDeps, AgentState, build_graph
 from whichmodel.agent.llm import OpenAICompatClient
 from whichmodel.config import get_settings
 from whichmodel.logging_setup import setup_logging
-from whichmodel.retrieval import BM25Retriever, load_kb
+from whichmodel.retrieval import build_retriever, load_kb
 from whichmodel.sessions import InMemorySessionStore
 from whichmodel.tools import catalog
 
@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     conn = catalog.connect(settings.db_path)
     deps = AgentDeps(
         llm=OpenAICompatClient(settings),
-        retriever=BM25Retriever(load_kb(settings.kb_dir)),
+        retriever=build_retriever(load_kb(settings.kb_dir), settings),
         conn=conn,
         db_path=str(settings.db_path),
         snippets_path=settings.snippets_path,
