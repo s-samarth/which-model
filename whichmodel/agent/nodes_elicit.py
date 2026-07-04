@@ -117,11 +117,17 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
     for the ranking signal is present so scores can be narrated honestly.
     """
     req = state.requirements
+    msg = last_user_message(state)
     names: list[str] = []
     if req.task_category and TASK_DOC.get(req.task_category):
         names.append(TASK_DOC[req.task_category])
     if req.deployment in (Deployment.local, None) or req.privacy_need == "high":
         names.append("guides/local-inference")
+    if re.search(r"host|gpu|server|self-?host|setup", msg, re.I):
+        names.append("guides/gpu-hosting")
+    if purpose == "clarify" and re.search(
+            r"not sure|don'?t know|no idea|whatever|confus|maybe|i guess", msg, re.I):
+        names.append("guides/reading-user-language")
     if purpose == "clarify" and req.context_need is None:
         names.append("guides/context-length")
     if purpose == "recommend" and req.deployment != Deployment.local:
@@ -130,7 +136,7 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
                                         req.language_needs, re.I):
         names.append("regional/india-notes")
     docs = [d for n in names if (d := retriever.get(n))]
-    for extra in retriever.search(last_user_message(state) or (req.task_description or ""), k=2):
+    for extra in retriever.search(msg or (req.task_description or ""), k=2):
         if extra.name not in {d.name for d in docs}:
             docs.append(extra)
     if purpose == "recommend" and not any(d.name == "benchmarks/livebench" for d in docs):

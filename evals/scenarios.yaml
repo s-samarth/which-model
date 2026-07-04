@@ -122,6 +122,20 @@ scenarios:
       - "sorry, I mean I want help writing emails to customers"
     expect: {}
 
+  # Replays the failure seen in user testing: after a cloud recommendation,
+  # the user pivots to local hosting. The agent must re-elicit (hardware
+  # probe), not replay the stale cloud answer.
+  - name: post-recommendation-local-pivot
+    turns:
+      - "chatbot for my food business customers, cloud is fine, $25 a month, just pick one"
+      - "okay but what if I want a local LLM hosted myself? I don't know what GPU setup I'd need"
+    probe_output: |
+      Chip: Apple M3
+      Memory: 24 GB
+    expect:
+      deployment: local
+      picks_local: true
+
   - name: budget-zero-api
     turns:
       - "I want a general assistant but I refuse to pay a single dollar, no local install either, cloud only"

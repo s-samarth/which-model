@@ -6,6 +6,7 @@
 brew install ollama          # or download from ollama.com
 ollama serve                 # or: brew services start ollama
 ollama pull qwen3.5:4b
+ollama pull nomic-embed-text # optional: hybrid retrieval; BM25-only without it
 uv sync
 make dev                     # http://127.0.0.1:8000
 ```

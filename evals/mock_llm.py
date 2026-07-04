@@ -41,15 +41,18 @@ class HeuristicLLM:
             if re.search(pattern, text):
                 patch["task_category"] = cat
                 break
-        if re.search(r"offline|on my (mac|laptop|pc|machine)|locally|private", text):
+        if re.search(r"offline|on my (mac|laptop|pc|machine)|locally|private|"
+                     r"local llm|host(ed)? (it )?myself|self-?host", text):
             patch["deployment"] = "local"
         elif re.search(r"cloud|api|online|free tier", text):
             patch["deployment"] = "api"
         if m := re.search(r"\$(\d+)", text):
-            patch["budget_monthly_usd"] = float(m.group(1))
+            patch["budget_amount"], patch["budget_currency"] = float(m.group(1)), "usd"
+        elif m := re.search(r"(\d+)\s*(rupees|inr|rs)\b", text):
+            patch["budget_amount"], patch["budget_currency"] = float(m.group(1)), "inr"
         elif re.search(r"free|can'?t pay|no money|nothing|refuse to pay|single dollar|won'?t pay",
                        text):
-            patch["budget_monthly_usd"] = 0.0
+            patch["budget_amount"], patch["budget_currency"] = 0.0, "usd"
         if re.search(r"hour a day|daily|moderate", text):
             patch["usage_level"] = "moderate"
         elif re.search(r"few (chats|questions)|occasionally|light", text):

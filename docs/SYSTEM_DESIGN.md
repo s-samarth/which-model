@@ -58,19 +58,36 @@ The knowledge base is the complement: distilled judgment (what a benchmark means
 
 The recommend LLM receives a fixed candidate list and returns only ids plus short "why" strings. Assembly is deterministic: prices, INR conversion, score columns, and the comparison table come from `ModelRow` objects, never from generated text. Post-generation, `grounding.foreign_model_mentions()` scans all free text for surface forms of every catalog model (name, id, slug tail) and flags any mention outside the candidate set, with span logic so "GPT-5.4" inside "GPT-5.4-mini" does not false-positive. One violation triggers a corrective retry; a second one discards the LLM plan entirely for the deterministic fallback. The eval harness asserts zero violations across all scenarios.
 
-## Why BM25 before embeddings
+## Retrieval: hybrid BM25 + embeddings
 
-The corpus is 21 hand-written docs with controlled vocabulary and tags. BM25 with tag boosting resolves every routing test we have, runs in-process with zero services, and is debuggable by reading term scores. Embeddings add an inference dependency, an index lifecycle, and non-determinism, for no measurable gain at this corpus size. The `Retriever` protocol (`search`, `get`) is the seam: an embedding implementation drops in without touching graph code when the corpus outgrows keywords.
+v1 shipped BM25 only; user testing showed vague and Hinglish phrasings ("kitna paisa lagega har mahine") that keyword matching cannot reach, so the default is now a hybrid. Both retrievers run per query and their rankings merge with reciprocal rank fusion (1/(60+rank) per list), which needs no score normalization. Embeddings come from the same OpenAI-compatible endpoint as the chat model (nomic-embed-text via Ollama); document vectors cache on disk keyed by content hash, so the corpus embeds once. Everything sits behind the `Retriever` protocol (`search`, `get`); `RETRIEVER_BACKEND` selects bm25, embedding, or hybrid, and the factory degrades to BM25 with a log line if the embedding model is unavailable. Deterministic doc pulls (`get` by name) never involve either ranker.
 
-## Context budget strategy for small models
+## Web search
 
-The serving model may have 8-16k usable tokens. Discipline applied:
+The catalog rule ("if it is not in the DB, it does not exist") stays absolute for picks, but users ask about models we do not carry, and stonewalling them tested badly. A `web_lookup` node detects model-ish names that resolve to nothing in the catalog (full hyphenated chains, so `claude-sonnet-5` resolves and `SuperGPT-9000` does not) and runs a DuckDuckGo search (ddgs, no API key, `WEB_SEARCH=off` to disable). Findings enter the turn's context as labeled `[web search: ...]` chunks and the user gets a deterministic sentence with the top source URL. The grounding boundary is unchanged: web results inform narration, never picks, and search runs only for unknown-model mentions or explicit requests, never routinely during conversations.
+
+## Activity streaming
+
+Users need to see what the agent is doing during slow local-model turns. Nodes append plain-language lines to `state.activity` ("Reading knowledge base: guides/gpu-hosting", "Searching the web: ..."); `POST /chat/stream` re-emits them as SSE events by diffing activity after each LangGraph node completes (`stream_mode="values"`), then sends a final event with the full payload. The frontend renders the lines live and dims them once the reply arrives. Plain `POST /chat` remains as the fallback transport.
+
+## Context budget and latency strategy for small models
+
+The serving model may have 8-16k usable tokens and runs on laptop CPU. Discipline applied:
 
 - System prompts are templates under ~350 tokens each; the largest (recommend) stays under ~1,200 with candidates and KB inlined.
-- The compact `requirements` object is the durable memory; the model window carries only the last 6 messages.
+- The compact `requirements` object is the durable memory; the model window carries only the last 6 messages, each clipped to 400 chars (long recommendation replies were drowning extraction in user testing).
 - Older messages fold into a 2-3 sentence LLM summary (best effort; requirements hold the facts regardless).
 - KB docs are injected per turn, trimmed to 1,500 chars each, at most 4 docs, selected deterministically for the turn's purpose.
 - Each turn makes 1-2 LLM calls (extract + either clarify or recommend), keeping latency tolerable on a laptop.
+- Thinking models: `reasoning_effort=none` disables reasoning tokens (extraction does not need them; they tripled turn time). `keep_alive=30m` prevents Ollama from unloading the model between slow human turns, which was the main cause of late-conversation slowdowns. Both are env-configurable and retried without if a backend rejects them.
+
+## Conversation-repair rules (from user testing)
+
+- `recommend_now` is strictly per-turn. The sticky version replayed stale recommendations at every follow-up.
+- Currency conversion is code, not model: extraction returns `budget_amount` + `budget_currency`; a 4B once turned 2000 INR into $2.38.
+- Asked questions accumulate in state and are injected as a do-not-repeat list, with a word-overlap check as the backstop; when nothing new is left to ask, the graph recommends instead of interrogating.
+- "I am not sure" about deployment maps to `either`, so indecision cannot loop the same question.
+- The LLM's pick plan is rank-sanitized: top pick from the top 3, runner-up from the top 4, budget pick strictly cheaper than the top pick; violations are replaced deterministically. The comparison table always leads with the picks.
 
 ## Sessions
 

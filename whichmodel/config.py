@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # which a 4B model does not need for extraction and keeps replies fast.
     # Set empty to omit the parameter for backends that reject it.
     llm_reasoning_effort: str = "none"
+    # Ollama unloads idle models after ~5 minutes; slow human turns then pay a
+    # full model reload. Keep it warm for the session. Empty to omit.
+    llm_keep_alive: str = "30m"
 
     # Data
     db_path: Path = Path("data/models.db")

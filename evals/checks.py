@@ -10,7 +10,9 @@ from whichmodel.tools.hardware import load_snippets
 
 
 def _rec_prose(state: AgentState) -> str:
-    parts = [m["content"] for m in state.messages if m["role"] == "assistant"]
+    """The final answer only: earlier turns were grounded against earlier
+    candidate sets (a pivot legitimately changes them)."""
+    parts = [m["content"] for m in state.messages if m["role"] == "assistant"][-1:]
     rec = state.recommendation
     if rec:
         parts += [p.why for p in rec.picks] + rec.assumptions + rec.caveats

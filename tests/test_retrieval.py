@@ -41,6 +41,8 @@ class TestSearch:
             ("how many tokens fit in a context window", "guides/context-length"),
             ("monthly cost estimate for API usage", "guides/pricing-mental-models"),
             ("INR pricing and Indian languages", "regional/india-notes"),
+            ("what GPU setup do I need to self-host", "guides/gpu-hosting"),
+            ("user says I don't know and is not sure", "guides/reading-user-language"),
         ],
     )
     def test_query_surfaces_right_doc(self, retriever, query, expected):

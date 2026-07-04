@@ -44,11 +44,13 @@ def play(scenario: dict, deps: AgentDeps) -> AgentState:
     state = AgentState()
     queue = list(scenario.get("turns", []))
     probe = scenario.get("probe_output")
-    while state.user_turns < MAX_TURNS and state.phase != Phase.done:
+    while state.user_turns < MAX_TURNS:
         if state.phase == Phase.probing_hardware and probe:
             msg, probe = probe, None
         elif queue:
-            msg = queue.pop(0)
+            msg = queue.pop(0)  # scripted turns continue even past a recommendation
+        elif state.phase == Phase.done:
+            break
         else:
             msg = NUDGE
         state = run_turn(app, deps, state, msg)

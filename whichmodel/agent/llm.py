@@ -45,12 +45,18 @@ class OpenAICompatClient:
         self._model = settings.model_name
         self._temperature = settings.llm_temperature
         self._reasoning_effort = settings.llm_reasoning_effort or None
+        self._keep_alive = settings.llm_keep_alive or None
 
     def complete(self, system: str, messages: list[dict], *, max_tokens: int = 700,
                  json_mode: bool = False) -> str:
         kwargs: dict = {"response_format": {"type": "json_object"}} if json_mode else {}
+        extra: dict = {}
         if self._reasoning_effort:
-            kwargs["extra_body"] = {"reasoning_effort": self._reasoning_effort}
+            extra["reasoning_effort"] = self._reasoning_effort
+        if self._keep_alive:
+            extra["keep_alive"] = self._keep_alive
+        if extra:
+            kwargs["extra_body"] = extra
         try:
             resp = self._client.chat.completions.create(
                 model=self._model,
@@ -62,9 +68,9 @@ class OpenAICompatClient:
         except Exception:
             if "extra_body" not in kwargs:
                 raise
-            # Some backends reject reasoning_effort; retry without it once.
-            log.info("backend rejected reasoning_effort; retrying without it")
-            self._reasoning_effort = None
+            # Some backends reject the extra parameters; retry without them once.
+            log.info("backend rejected extra body params; retrying without them")
+            self._reasoning_effort = self._keep_alive = None
             kwargs.pop("extra_body")
             resp = self._client.chat.completions.create(
                 model=self._model,

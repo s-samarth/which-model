@@ -54,6 +54,14 @@ sqlite3 data/models.db "SELECT id, param_b, ollama_tag FROM models WHERE availab
 3. If it is a new task taxonomy doc, map the enum value in `TASK_DOC` (`whichmodel/agent/nodes_elicit.py`).
 4. Add a routing case to `tests/test_retrieval.py` (query -> expected doc) and run `make test`.
 
+## Retrieval looks off after editing KB docs
+
+Embedding vectors cache in `data/kb_embeddings.json` keyed by content hash; edited docs re-embed automatically on next boot. If results still look stale or the file is corrupt, delete it and restart. To rule the embedding side out entirely, set `RETRIEVER_BACKEND=bm25` and compare.
+
+## Web search misbehaving
+
+`WEB_SEARCH=off` disables it entirely (the agent then simply says a model is not in its catalog). Search only triggers for unknown model-ish names or explicit "search the web" requests; if it fires too often, tighten `_MODELISH_RE` or `_NOISE` in `whichmodel/tools/websearch.py` and add a regression case to `tests/test_web.py`.
+
 ## Ollama is down or slow
 
 The chat degrades cleanly: the user gets "I hit a problem talking to my reasoning model" plus the data age, and the session survives. Check `ollama ps`, restart with `ollama serve`. Slow first reply after idle is model load, not a bug. On fanless laptops, sustained sessions throttle; expect it.

@@ -7,9 +7,9 @@ Existing tools (quiz sites, wizard forms, CLI pickers) make you fill out a form.
 ## The 60-second demo
 
 1. Open the app. Type: "offline chatbot on my MacBook, fully private".
-2. The agent asks nothing you cannot answer. When your hardware matters, it hands you one safe, pre-written terminal command: "run this and paste the output".
-3. Paste the output. It detects your RAM and chip, filters the catalog to models that actually fit, and renders a card: top pick, runner-up, budget pick, comparison table, monthly cost, and the assumptions it made.
-4. Every model name, price, and score traces to a row in a local SQLite catalog refreshed daily from OpenRouter and LiveBench. The brain is a small local model (Qwen3.5 4B via Ollama); it is never trusted to recall facts.
+2. The agent asks nothing you cannot answer, shows what it is doing while it thinks (reading its knowledge base, querying the catalog, searching the web), and never repeats a question. A "Recommend now" button skips the rest of the questions whenever you are done explaining.
+3. When your hardware matters, it hands you one safe, pre-written terminal command: "run this and paste the output". It detects your RAM and chip, filters the catalog to models that actually fit, and renders a card: top pick, runner-up, budget pick, how to run each one (cloud signup or `ollama pull`), a comparison table with an explained score, monthly cost with the estimation basis spelled out, and the assumptions it made.
+4. Every model name, price, and score traces to a row in a local SQLite catalog refreshed daily from OpenRouter and LiveBench. Ask about a model it does not carry and it says so, backed by a quick sourced web search, instead of guessing. The brain is a small local model (Qwen3.5 4B via Ollama); it is never trusted to recall facts.
 
 ## Quickstart
 
@@ -18,6 +18,7 @@ Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), [Ollama](https://o
 ```bash
 git clone <this-repo> && cd which-model
 ollama pull qwen3.5:4b          # the default serving model (~3GB)
+ollama pull nomic-embed-text    # optional: enables hybrid retrieval (~270MB)
 uv sync
 make dev                        # http://127.0.0.1:8000
 ```
@@ -98,5 +99,8 @@ The footer shows the catalog age. A GitHub Actions workflow (or local cron, see 
 **A model I know is missing.**
 If it is not in the DB, it does not exist for this app, by design. See [docs/RUNBOOK.md](docs/RUNBOOK.md) for adding models and name aliases.
 
-**Why BM25 instead of embeddings?**
-21 curated docs do not need a vector database. Retrieval sits behind a small protocol, so an embedding backend can be added without touching the agent. See [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md).
+**How does retrieval work?**
+Hybrid: BM25 keyword search plus local embeddings (nomic-embed-text via Ollama), fused by reciprocal rank. No vector database, no external service; document vectors cache on disk. If the embedding model is not pulled, it silently runs BM25 alone. See [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md).
+
+**Does it search the web?**
+Only when needed: if you ask about a model that is not in its catalog, it runs a DuckDuckGo search, tells you what it found with the source URL, and shows the search in the activity feed. Recommendations still come exclusively from the catalog. Set `WEB_SEARCH=off` to disable.
