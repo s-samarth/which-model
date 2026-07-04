@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "which-model",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "uvicorn", "whichmodel.web.app:app", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

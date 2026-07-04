@@ -1,1 +1,48 @@
-<!doctype html><title>Which Model?</title>placeholder
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Which Model?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,450;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <h1>Which&nbsp;Model<span class="q">?</span></h1>
+    <p class="tagline">Tell me what you're trying to do. I'll find the right AI model for your task, budget, and machine.</p>
+  </header>
+
+  <main id="chat" aria-live="polite"></main>
+
+  <form id="composer" autocomplete="off">
+    <textarea id="input" rows="1" placeholder="e.g. I want a chatbot for my shop…"
+              aria-label="Your message" required></textarea>
+    <button id="send" type="submit" aria-label="Send">Send</button>
+  </form>
+
+  <footer class="colophon">
+    <button id="reset" type="button">Start over</button>
+    <span id="data-age"></span>
+  </footer>
+
+  <template id="tpl-recommendation">
+    <section class="rec-card">
+      <div class="rec-picks"></div>
+      <div class="rec-table-wrap">
+        <table class="rec-table">
+          <thead><tr>
+            <th>Model</th><th>Score</th><th>Est. monthly</th><th>Context</th><th>Runs</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="rec-notes"></div>
+    </section>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

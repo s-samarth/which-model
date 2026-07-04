@@ -1,0 +1,129 @@
+/* Which Model? — warm editorial, light theme. */
+:root {
+  --paper: #faf6ef;
+  --card: #fffdf8;
+  --ink: #211d18;
+  --ink-soft: #6d6459;
+  --line: #e6ddd0;
+  --accent: #b4430e;      /* terracotta */
+  --accent-soft: #fbe9df;
+  --sage: #5c6f5d;
+  --sage-soft: #eef1ea;
+  --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --body: "Public Sans", Seravek, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0 auto; padding: 0 20px 200px; max-width: 700px;
+  font-family: var(--body); color: var(--ink); line-height: 1.55; font-size: 16px;
+  background:
+    radial-gradient(1200px 500px at 85% -8%, #f3e5d3cc, transparent 60%),
+    radial-gradient(900px 420px at -10% 4%, #e9eee3aa, transparent 55%),
+    var(--paper);
+}
+
+.masthead { padding: 44px 0 10px; border-bottom: 3px double var(--line); margin-bottom: 26px; }
+.masthead h1 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(2.1rem, 6vw, 3rem);
+  letter-spacing: -0.02em; margin: 0;
+}
+.masthead .q { color: var(--accent); }
+.tagline { color: var(--ink-soft); margin: 8px 0 18px; max-width: 46ch; }
+
+/* Chat */
+#chat { display: flex; flex-direction: column; gap: 18px; }
+.msg { animation: rise .35s ease both; max-width: 92%; white-space: pre-wrap; }
+.msg.user {
+  align-self: flex-end; background: var(--sage-soft); border: 1px solid #dde3d6;
+  padding: 10px 16px; border-radius: 16px 16px 4px 16px;
+}
+.msg.bot { align-self: flex-start; border-left: 3px solid var(--accent); padding: 2px 0 2px 16px; }
+.msg.bot pre {
+  background: #2b2620; color: #f5eee2; padding: 12px 14px; border-radius: 8px;
+  overflow-x: auto; font-size: 0.86rem; position: relative; white-space: pre;
+}
+.copy-btn {
+  position: absolute; top: 8px; right: 8px; font: 600 0.7rem var(--body);
+  background: #ffffff22; color: #f5eee2; border: 1px solid #ffffff44;
+  border-radius: 6px; padding: 3px 9px; cursor: pointer;
+}
+.copy-btn:hover { background: #ffffff33; }
+.notice { align-self: center; font-size: .82rem; color: var(--sage); background: var(--sage-soft);
+  padding: 4px 14px; border-radius: 999px; }
+.typing { display: inline-flex; gap: 5px; padding: 8px 0 8px 16px; border-left: 3px solid var(--line); }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft);
+  animation: blink 1.1s infinite; }
+.typing i:nth-child(2) { animation-delay: .18s } .typing i:nth-child(3) { animation-delay: .36s }
+
+/* Recommendation card */
+.rec-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 14px 34px -18px #3a2c1a55; overflow: hidden; margin-top: 4px;
+  animation: rise .5s ease both;
+}
+.rec-picks { display: grid; gap: 1px; background: var(--line); }
+@media (min-width: 560px) { .rec-picks { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
+.pick { background: var(--card); padding: 18px 18px 16px; position: relative; }
+.pick.top_pick { background: linear-gradient(160deg, var(--accent-soft), var(--card) 70%); }
+.pick .role {
+  font: 600 0.68rem var(--body); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--sage);
+}
+.pick.top_pick .role { color: var(--accent); }
+.pick h3 { font-family: var(--display); font-weight: 600; font-size: 1.22rem; margin: 6px 0 6px; }
+.pick .cost { font-weight: 600; font-variant-numeric: tabular-nums; margin: 0 0 6px; }
+.pick .cost small { color: var(--ink-soft); font-weight: 400; }
+.pick .why { font-size: .9rem; color: var(--ink-soft); margin: 0; }
+.pick code.pull {
+  display: inline-block; margin-top: 8px; font-size: .78rem; background: #2b2620;
+  color: #f5eee2; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+}
+
+.rec-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+.rec-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 480px; }
+.rec-table th {
+  text-align: left; font: 600 .68rem var(--body); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-soft); padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+.rec-table td { padding: 9px 14px; border-bottom: 1px solid #f0e9dd;
+  font-variant-numeric: tabular-nums; }
+.rec-table tr.picked td:first-child { font-weight: 600; }
+.rec-table tr.picked td:first-child::before { content: "● "; color: var(--accent); font-size: .7em; vertical-align: 1px; }
+.rec-table .bar { display: inline-block; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--sage), var(--accent)); vertical-align: middle; margin-right: 7px; }
+
+.rec-notes { padding: 14px 18px 16px; border-top: 1px solid var(--line); font-size: .84rem;
+  color: var(--ink-soft); display: grid; gap: 8px; }
+.rec-notes h4 { margin: 0 0 2px; font: 600 .7rem var(--body); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--sage); }
+.rec-notes ul { margin: 0; padding-left: 18px; }
+
+/* Composer */
+#composer {
+  position: fixed; bottom: 44px; left: 50%; transform: translateX(-50%);
+  width: min(700px, calc(100% - 40px)); display: flex; gap: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 10px; box-shadow: 0 12px 30px -12px #3a2c1a44;
+}
+#input { flex: 1; border: 0; background: transparent; resize: none; font: inherit;
+  color: var(--ink); outline: none; max-height: 130px; }
+#send {
+  font: 600 .9rem var(--body); border: 0; background: var(--ink); color: var(--paper);
+  padding: 8px 20px; border-radius: 9px; cursor: pointer; transition: background .15s;
+}
+#send:hover { background: var(--accent); }
+#send:disabled { background: var(--line); cursor: wait; }
+
+.colophon {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: min(700px, calc(100% - 40px)); display: flex; justify-content: space-between;
+  align-items: center; padding: 8px 4px; font-size: .78rem; color: var(--ink-soft);
+  background: linear-gradient(transparent, var(--paper) 35%);
+}
+#reset { border: 0; background: none; color: var(--ink-soft); cursor: pointer;
+  font: inherit; text-decoration: underline dotted; }
+#reset:hover { color: var(--accent); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+@keyframes blink { 0%, 70%, 100% { opacity: .25 } 35% { opacity: 1 } }
