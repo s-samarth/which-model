@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     model_name: str = "qwen3.5:4b"
     llm_timeout_s: float = 120.0
     llm_temperature: float = 0.2
+    # For thinking models (qwen3.5 family): "none" disables reasoning tokens,
+    # which a 4B model does not need for extraction and keeps replies fast.
+    # Set empty to omit the parameter for backends that reject it.
+    llm_reasoning_effort: str = "none"
 
     # Data
     db_path: Path = Path("data/models.db")

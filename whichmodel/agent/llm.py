@@ -44,17 +44,33 @@ class OpenAICompatClient:
         )
         self._model = settings.model_name
         self._temperature = settings.llm_temperature
+        self._reasoning_effort = settings.llm_reasoning_effort or None
 
     def complete(self, system: str, messages: list[dict], *, max_tokens: int = 700,
                  json_mode: bool = False) -> str:
-        kwargs = {"response_format": {"type": "json_object"}} if json_mode else {}
-        resp = self._client.chat.completions.create(
-            model=self._model,
-            messages=[{"role": "system", "content": system}, *messages],
-            temperature=self._temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
+        kwargs: dict = {"response_format": {"type": "json_object"}} if json_mode else {}
+        if self._reasoning_effort:
+            kwargs["extra_body"] = {"reasoning_effort": self._reasoning_effort}
+        try:
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "system", "content": system}, *messages],
+                temperature=self._temperature,
+                max_tokens=max_tokens,
+                **kwargs,
+            )
+        except Exception:
+            if "extra_body" not in kwargs:
+                raise
+            # Some backends reject reasoning_effort; retry without it once.
+            log.info("backend rejected reasoning_effort; retrying without it")
+            self._reasoning_effort = None
+            kwargs.pop("extra_body")
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "system", "content": system}, *messages],
+                temperature=self._temperature, max_tokens=max_tokens, **kwargs,
+            )
         return resp.choices[0].message.content or ""
 
 

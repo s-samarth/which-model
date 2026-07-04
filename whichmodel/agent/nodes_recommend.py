@@ -38,7 +38,9 @@ def _candidate_lines(cands: list[ModelRow], benchmark: str) -> str:
             m.id,
             f"score={score:.0f}" if score is not None else "score=unmeasured",
             "free" if m.is_free else (
-                f"~${m.est_monthly_usd:.0f}/mo" if m.est_monthly_usd is not None else "local-only"),
+                (f"~${m.est_monthly_usd:.2f}/mo" if m.est_monthly_usd < 10
+                 else f"~${m.est_monthly_usd:.0f}/mo")
+                if m.est_monthly_usd is not None else "local-only"),
             f"ctx={m.context_length // 1000}k" if m.context_length else "ctx=?",
         ]
         if m.available_local:
