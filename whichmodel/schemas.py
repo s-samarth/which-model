@@ -119,6 +119,7 @@ class Pick(BaseModel):
     why: str
     mode: str = "api"  # api | local: how this user should run it
     get_started: str = ""  # concrete first step (signup or ollama pull)
+    local_setup: dict | None = None  # quants, memory, speed, serving stack
     monthly_cost_usd: float | None = None
     monthly_cost_inr: float | None = None
     ollama_tag: str | None = None

@@ -12,7 +12,7 @@ from whichmodel.agent import grounding, prompts
 from whichmodel.agent.llm import LLMClient, StructuredOutputError, structured
 from whichmodel.agent.state import AgentState, Phase, PickPlan
 from whichmodel.schemas import ModelRow, Pick, Recommendation, Requirements, TaskCategory
-from whichmodel.tools import catalog, costs
+from whichmodel.tools import catalog, costs, performance
 
 log = logging.getLogger(__name__)
 
@@ -162,9 +162,13 @@ def _build_payload(plan: PickPlan, state: AgentState, conn: sqlite3.Connection,
             continue
         m = by_id[mid]
         mode = _pick_mode(m, req)
+        setup = performance.local_setup(
+            conn, m, req.hardware, req.usage_level,
+            str(req.task_category) if req.task_category else None,
+        ) if mode == "local" else None
         picks.append(Pick(
             model_id=m.id, name=m.name, role=role, why=why or "", mode=mode,
-            get_started=_get_started(m, mode),
+            get_started=_get_started(m, mode), local_setup=setup,
             monthly_cost_usd=None if mode == "local" else m.est_monthly_usd,
             monthly_cost_inr=None if mode == "local" else
             costs.usd_to_inr(m.est_monthly_usd, usd_to_inr),
@@ -184,7 +188,8 @@ def _build_payload(plan: PickPlan, state: AgentState, conn: sqlite3.Connection,
             "context_k": (m.context_length or 0) // 1000 or None,
             "local": m.available_local, "api": m.available_api,
             "free": m.is_free, "ollama_tag": m.ollama_tag,
-            "memory_gb": m.est_memory_gb, "picked": m.id in pick_ids,
+            "memory_gb": m.est_memory_gb, "param_b": m.param_b,
+            "picked": m.id in pick_ids,
         }
         for m in ordered[:6]
     ]

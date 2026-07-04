@@ -150,3 +150,42 @@ class TestHardware:
     def test_probe_detection(self):
         assert hardware.looks_like_probe_output("Chip: Apple M3\nMemory: 24 GB")
         assert not hardware.looks_like_probe_output("I have a macbook air")
+
+
+class TestPerformance:
+    def _hw(self, **kw):
+        return Hardware(**kw)
+
+    def test_quant_options_from_db(self, conn):
+        from whichmodel.tools import performance
+        opts = performance.quant_options(conn, 9.0, usable_memory_gb=11.2)
+        by_name = {o["quant"]: o for o in opts}
+        assert by_name["q4_K_M"]["memory_gb"] == round(9.0 * 0.6 * 1.2, 1)
+        assert by_name["q4_K_M"]["fits"] is True
+        assert by_name["fp16"]["fits"] is False
+        assert "sweet spot" in by_name["q4_K_M"]["note"]
+
+    def test_tok_s_moe_uses_active_params(self):
+        from whichmodel.tools import performance
+        mac = self._hw(ram_gb=24, gpu="Apple M3 (unified memory)", os="macos")
+        dense = performance.est_tok_s(30.0, None, mac)
+        moe = performance.est_tok_s(30.0, 3.0, mac)
+        assert int(moe.split("-")[0]) > int(dense.split("-")[1].split()[0]), \
+            "MoE lower bound should beat dense upper bound"
+
+    def test_serving_stack_guidance(self):
+        from whichmodel.tools import performance
+        assert "vLLM" in performance.serving_stack("heavy", "coding")
+        assert "Ollama" in performance.serving_stack("light", "coding")
+
+    def test_local_setup_payload(self, conn):
+        from whichmodel.tools import performance
+        m = catalog.lookup_model(conn, "qwen3.5:4b")
+        hw = self._hw(ram_gb=16, gpu="Apple M2 (unified memory)", os="macos")
+        setup = performance.local_setup(conn, m, hw, "light", "chat_assistant")
+        assert setup["param_b"] == m.param_b
+        assert setup["est_speed"].endswith("tok/s")
+        assert any(q["fits"] for q in setup["quants"])
+        moe = catalog.lookup_model(conn, "openai/gpt-oss-20b")
+        setup2 = performance.local_setup(conn, moe, hw, None, None)
+        assert setup2["moe_note"] and "mixture-of-experts" in setup2["moe_note"]

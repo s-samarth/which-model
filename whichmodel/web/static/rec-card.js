@@ -24,6 +24,7 @@ function renderPick(pick) {
   }
   div.appendChild(cost);
   div.appendChild(el("p", "why", pick.why));
+  if (pick.local_setup) div.appendChild(renderLocalSetup(pick.local_setup));
   if (pick.get_started) div.appendChild(el("p", "get-started", pick.get_started));
   if (pick.ollama_tag && pick.mode === "local") {
     const code = el("code", "pull", `ollama pull ${pick.ollama_tag}`);
@@ -32,6 +33,30 @@ function renderPick(pick) {
     div.appendChild(code);
   }
   return div;
+}
+
+/* Local setup block: quantization options with memory, speed, serving stack.
+   Quantization = compressing the model to fewer bits; q4 is the usual choice. */
+function renderLocalSetup(setup) {
+  const box = el("div", "local-setup");
+  const quants = (setup.quants || [])
+    .filter((q) => ["q4_K_M", "q8_0"].includes(q.quant))
+    .map((q) => {
+      const fit = q.fits === null ? "" : q.fits ? " ✓ fits" : " ✗ too big";
+      return `${q.quant.replace("_K_M", "")} ≈ ${q.memory_gb}GB${fit}`;
+    })
+    .join(" · ");
+  if (quants) {
+    const q = el("p", null, `Quantized sizes: ${quants}`);
+    q.title = "Quantization compresses the model to fewer bits per weight. " +
+      "q4 is the standard choice: half the memory, small quality loss. " +
+      "q8 is near-lossless but twice the size.";
+    box.appendChild(q);
+  }
+  if (setup.est_speed) box.appendChild(el("p", null, `Expected speed: ~${setup.est_speed} on your hardware (readable is ~10)`));
+  if (setup.moe_note) box.appendChild(el("p", null, setup.moe_note));
+  if (setup.serving) box.appendChild(el("p", null, setup.serving));
+  return box;
 }
 
 function runsLabel(row) {
@@ -57,9 +82,17 @@ function renderRecommendation(rec) {
       scoreTd.appendChild(bar);
       scoreTd.appendChild(el("span", null, row.score.toFixed(0)));
       scoreTd.title = row.benchmark;
+    } else if (row.param_b) {
+      scoreTd.textContent = `${row.param_b}B params`;
+      scoreTd.title = "Not benchmarked; parameter count shown as a rough size proxy";
     } else scoreTd.textContent = "–";
     tr.appendChild(scoreTd);
-    tr.appendChild(el("td", null, money(row.est_monthly_usd)));
+    const costTd = el("td");
+    if (row.est_monthly_usd === null && row.local && row.memory_gb) {
+      costTd.textContent = `~${row.memory_gb}GB @ q4`;
+      costTd.title = "Runs on your machine; memory needed at 4-bit quantization";
+    } else costTd.textContent = money(row.est_monthly_usd);
+    tr.appendChild(costTd);
     tr.appendChild(el("td", null, row.context_k ? `${row.context_k}k` : "–"));
     tr.appendChild(el("td", null, runsLabel(row)));
     tbody.appendChild(tr);
