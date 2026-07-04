@@ -1,0 +1,38 @@
+# Refreshes data/models.db from live sources on a schedule and commits the
+# updated SQLite artifact plus source snapshots back to the repo.
+name: refresh-data
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily at 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Refresh catalog
+        run: uv run python -m ingestion.refresh
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/models.db ingestion/snapshots/
+          if git diff --cached --quiet; then
+            echo "no data changes"
+          else
+            git commit -m "data: scheduled catalog refresh"
+            git push
+          fi
