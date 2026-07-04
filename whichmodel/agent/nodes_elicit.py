@@ -81,7 +81,9 @@ def extract(state: AgentState, llm: LLMClient, usd_to_inr: float = 84.0) -> Agen
     try:
         patch = structured(llm, system, window, RequirementsPatch, max_tokens=400)
         state.requirements = merge_patch(state.requirements, patch, usd_to_inr)
-        if patch.wants_recommendation_now:
+        # The small model flags this spuriously on first contact; trust it only
+        # once the user has had a real chance to be asked something.
+        if patch.wants_recommendation_now and state.user_turns >= 2:
             state.recommend_now = True
     except StructuredOutputError:
         log.warning("extraction failed twice; continuing with unchanged requirements")
