@@ -1,0 +1,30 @@
+# Canned hardware probe commands, keyed by snippet id.
+# The agent only ever selects an id from this file; commands are never generated.
+# Each snippet is read-only and safe to paste into a terminal.
+snippets:
+  macos_system:
+    os: macos
+    label: "Mac (Terminal)"
+    command: |
+      system_profiler SPHardwareDataType | grep -E "Chip|Memory"; sw_vers -productVersion
+    explanation: >
+      Prints your Mac's chip and memory. Open Terminal (Cmd+Space, type
+      "Terminal"), paste the line, press Enter, and paste the output back here.
+
+  linux_system:
+    os: linux
+    label: "Linux (shell)"
+    command: |
+      free -g | head -2; uname -sr; (nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || lspci | grep -i 'vga\|3d') 2>/dev/null
+    explanation: >
+      Prints RAM, kernel, and GPU if present. Paste into any shell and send
+      back the output.
+
+  windows_system:
+    os: windows
+    label: "Windows (PowerShell)"
+    command: |
+      Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory; Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM
+    explanation: >
+      Prints total RAM and graphics card. Open PowerShell (Win key, type
+      "PowerShell"), paste the line, press Enter, and paste the output back.
