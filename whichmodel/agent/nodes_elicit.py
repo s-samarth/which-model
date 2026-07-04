@@ -125,6 +125,12 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
         names.append("guides/local-inference")
     if re.search(r"host|gpu|server|self-?host|setup", msg, re.I):
         names.append("guides/gpu-hosting")
+    if re.search(r"vllm|sglang|lm ?studio|ollama|serv(e|ing)|deploy|inference", msg, re.I):
+        names.append("guides/serving-stacks")
+    if re.search(r"benchmark|score|leaderboard|elo|swe-?bench|livebench|hle\b", msg, re.I):
+        names.append("guides/choosing-benchmarks")
+    if re.search(r"\bmoe\b|mixture.of.experts|active param", msg, re.I):
+        names.append("guides/mixture-of-experts")
     if purpose == "clarify" and re.search(
             r"not sure|don'?t know|no idea|whatever|confus|maybe|i guess", msg, re.I):
         names.append("guides/reading-user-language")

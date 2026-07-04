@@ -43,6 +43,10 @@ class TestSearch:
             ("INR pricing and Indian languages", "regional/india-notes"),
             ("what GPU setup do I need to self-host", "guides/gpu-hosting"),
             ("user says I don't know and is not sure", "guides/reading-user-language"),
+            ("should I use vLLM or SGLang to serve", "guides/serving-stacks"),
+            ("what is a mixture of experts model", "guides/mixture-of-experts"),
+            ("which benchmark should I trust for my task", "guides/choosing-benchmarks"),
+            ("what is humanity's last exam HLE", "benchmarks/hle"),
         ],
     )
     def test_query_surfaces_right_doc(self, retriever, query, expected):

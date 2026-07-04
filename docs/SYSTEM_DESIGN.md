@@ -54,6 +54,14 @@ Facts here are relational: filter by price, join scores, compare context windows
 
 The knowledge base is the complement: distilled judgment (what a benchmark means, what 32k tokens holds) that has no schema. That is retrieval's job, and only that.
 
+## Voice and answer composition
+
+The product is "Claude, narrowly specialized in choosing AI models": a shared persona prompt frames every LLM call, clarify turns acknowledge before asking, and the recommendation reply is written by the model itself, shaped by what the user actually asked, with reasoning first. Structure survives underneath: the LLM's narrative and per-pick "why" text pass the same grounding validation as before, ids are rank-sanitized, and every number in the card is computed, not generated. Templates still exist but only fire when the LLM fails outright. The benchmark used for ranking is always named and explained in plain language (BENCHMARK_BLURBS), selected per task category, never a silent global default.
+
+Local picks carry a computed `local_setup` block: quantization options with memory footprints from the DB's quant_factors table and fit flags against the user's hardware, a tok/s estimate by hardware tier (MoE models rated at active-parameter speed), a mixture-of-experts explanation when applicable, and serving-stack guidance (Ollama/LM Studio for one user, vLLM/SGLang for concurrent serving). The comparison table shows parameter count and q4 memory for unbenchmarked local rows instead of dashes.
+
+A note on benchmark sources: the Aider polyglot leaderboard was evaluated as a second ranking signal and rejected because its data (last update late 2025) predates every current catalog model; mixing stale scores into rankings would mislead. The ingestion path (benchmarks table + CATEGORY_BENCHMARKS + BENCHMARK_BLURBS) is the extension point when a fresh source appears.
+
 ## Grounding enforcement
 
 The recommend LLM receives a fixed candidate list and returns only ids plus short "why" strings. Assembly is deterministic: prices, INR conversion, score columns, and the comparison table come from `ModelRow` objects, never from generated text. Post-generation, `grounding.foreign_model_mentions()` scans all free text for surface forms of every catalog model (name, id, slug tail) and flags any mention outside the candidate set, with span logic so "GPT-5.4" inside "GPT-5.4-mini" does not false-positive. One violation triggers a corrective retry; a second one discards the LLM plan entirely for the deterministic fallback. The eval harness asserts zero violations across all scenarios.
@@ -64,7 +72,7 @@ v1 shipped BM25 only; user testing showed vague and Hinglish phrasings ("kitna p
 
 ## Web search
 
-The catalog rule ("if it is not in the DB, it does not exist") stays absolute for picks, but users ask about models we do not carry, and stonewalling them tested badly. A `web_lookup` node detects model-ish names that resolve to nothing in the catalog (full hyphenated chains, so `claude-sonnet-5` resolves and `SuperGPT-9000` does not) and runs a DuckDuckGo search (ddgs, no API key, `WEB_SEARCH=off` to disable). Findings enter the turn's context as labeled `[web search: ...]` chunks and the user gets a deterministic sentence with the top source URL. The grounding boundary is unchanged: web results inform narration, never picks, and search runs only for unknown-model mentions or explicit requests, never routinely during conversations.
+The catalog rule ("if it is not in the DB, it does not exist") stays absolute for picks, but users ask about models we do not carry, and stonewalling them tested badly. A `web_lookup` node detects model-ish names that resolve to nothing in the catalog (full hyphenated chains, so `claude-sonnet-5` resolves and `SuperGPT-9000` does not) and runs a DuckDuckGo search (ddgs, no API key, `WEB_SEARCH=off` to disable). Findings enter the turn's context as labeled `[web search: ...]` chunks and the user gets a deterministic sentence with the top source URL. The catalog node also searches when coverage is thin (fewer than 3 candidates survive filtering), so the narration can honestly acknowledge options the catalog lacks. The grounding boundary is unchanged in both cases: web results inform narration, never picks.
 
 ## Activity streaming
 

@@ -64,7 +64,8 @@ def build_graph(deps: AgentDeps):
     g.add_node("ask_clarifying", partial(ne.ask_clarifying, llm=deps.llm))
     g.add_node("retrieve_recommend",
                partial(ne.retrieve_kb, retriever=deps.retriever, purpose="recommend"))
-    g.add_node("query_catalog", partial(nr.query_catalog, conn=deps.conn))
+    g.add_node("query_catalog", partial(nr.query_catalog, conn=deps.conn,
+                                        provider=deps.search_provider))
     g.add_node("recommend", partial(nr.recommend, llm=deps.llm, conn=deps.conn,
                                     db_path=deps.db_path, usd_to_inr=deps.usd_to_inr))
 

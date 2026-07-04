@@ -17,8 +17,11 @@ from whichmodel.tools import catalog, costs, performance
 log = logging.getLogger(__name__)
 
 
-def query_catalog(state: AgentState, conn: sqlite3.Connection) -> AgentState:
-    """Deterministic candidate lookup, relaxing the budget once if it filters everything."""
+def query_catalog(state: AgentState, conn: sqlite3.Connection,
+                  provider=None) -> AgentState:
+    """Deterministic candidate lookup, relaxing the budget once if it filters
+    everything. When coverage is thin, a web search supplements the CONTEXT
+    (never the picks) so the narration can acknowledge options we do not carry."""
     req = state.requirements
     state.activity.append("Querying the model catalog")
     state.candidates = catalog.find_candidates(conn, req)
@@ -27,6 +30,20 @@ def query_catalog(state: AgentState, conn: sqlite3.Connection) -> AgentState:
         state.candidates = catalog.find_candidates(conn, relaxed)
         if state.candidates:
             state.notices.append("budget_relaxed")
+    state.activity.append(f"Ranking {len(state.candidates)} catalog candidates")
+    if provider is not None and len(state.candidates) < 3:
+        task = (req.task_category or "general").replace("_", " ")
+        where = "run locally" if str(req.deployment) == "local" else "API"
+        query = f"best {task} LLM {where} 2026"
+        state.activity.append(f'Catalog coverage is thin; searching the web: "{query}"')
+        results = provider.search(query, k=3)
+        state.activity.extend(f"Reading: {r.url}" for r in results)
+        if results:
+            joined = "\n".join(f"- {r.title}: {r.snippet} ({r.url})" for r in results)
+            state.kb_context.append(
+                f"[web search: {query}]\n{joined}\n(Context only: recommend strictly "
+                "from the candidate list, but you may mention what the wider world "
+                "offers, with sources.)")
     state.phase = Phase.recommending
     return state
 
@@ -226,7 +243,7 @@ def recommend(state: AgentState, llm: LLMClient, conn: sqlite3.Connection,
         benchmark_blurb=blurb,
         candidates=_candidate_lines(state.candidates, benchmark),
         kb="\n\n".join(state.kb_context)[:3500])
-    state.activity.append(f"Ranking {len(state.candidates)} catalog candidates")
+    state.activity.append("Composing the recommendation")
     plan: PickPlan | None = None
     messages = [{"role": "user", "content": "Choose the picks now."}]
     for attempt in range(2):

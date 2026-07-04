@@ -47,6 +47,10 @@ sqlite3 data/models.db "SELECT id, param_b, ollama_tag FROM models WHERE availab
 3. Run the gate: `make eval`. Requirement: at least 12/15 scenarios pass with zero grounding violations.
 4. If extraction scenarios fail, the new model likely emits sloppier JSON; check the `structured output invalid` warnings in the server log. The repair loop tolerates occasional slips; systematic failure means the model is too weak for extraction.
 
+## Adding a new benchmark as a ranking signal
+
+Three touch points: ingest rows into the `benchmarks` table (follow `ingestion/livebench.py`; every row needs source and as_of_date), map the task in `catalog.CATEGORY_BENCHMARKS`, and add a plain-language entry to `catalog.BENCHMARK_BLURBS` plus a KB explainer doc. Reject sources whose latest data predates the current model generation; stale scores mixed into rankings mislead (this is why the Aider leaderboard, last updated late 2025, is not ingested).
+
 ## Adding a knowledge-base doc
 
 1. Write `kb/<category>/<slug>.md` following [KB_STYLE.md](KB_STYLE.md) (frontmatter: category, tags, updated).
