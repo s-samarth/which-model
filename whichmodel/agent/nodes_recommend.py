@@ -104,8 +104,8 @@ def _valid_plan(plan: PickPlan, cands: list[ModelRow], db_path: str) -> bool:
     named = [plan.top_pick_id, plan.runner_up_id, plan.budget_pick_id]
     if any(n is not None and n not in ids for n in named):
         return False
-    prose = " ".join(filter(None, [plan.why_top, plan.why_runner_up, plan.why_budget,
-                                   *plan.assumptions, *plan.caveats]))
+    prose = " ".join(filter(None, [plan.reply, plan.why_top, plan.why_runner_up,
+                                   plan.why_budget, *plan.assumptions, *plan.caveats]))
     return not grounding.foreign_model_mentions(prose, db_path, ids)
 
 
@@ -188,14 +188,13 @@ def _build_payload(plan: PickPlan, state: AgentState, conn: sqlite3.Connection,
         }
         for m in ordered[:6]
     ]
-    nice_bench = benchmark.replace("livebench_", "").replace("_", " ")
+    blurb = catalog.BENCHMARK_BLURBS.get(benchmark, "")
     return Recommendation(
         picks=picks, comparison=comparison,
         assumptions=[*plan.assumptions, *_auto_assumptions(state.requirements, state)],
         caveats=plan.caveats,
-        score_legend=(f"Score = LiveBench {nice_bench}, 0-100, higher is better. "
-                      "Gaps under 5 points are noise; a missing score means the model "
-                      "was not measured, not that it is bad."),
+        score_legend=(f"{blurb} Gaps under 5 points are noise; a missing score means "
+                      "the model was not measured, not that it is bad."),
         cost_basis=costs.basis_text(req.usage_level),
         data_age=catalog.data_age(conn))
 
@@ -215,9 +214,11 @@ def recommend(state: AgentState, llm: LLMClient, conn: sqlite3.Connection,
 
     task = req.task_category or TaskCategory.other
     benchmark = catalog.CATEGORY_BENCHMARKS[task][0]
+    blurb = catalog.BENCHMARK_BLURBS.get(benchmark, "")
     system = prompts.RECOMMEND_SYSTEM.format(
         requirements=req.model_dump_json(exclude_none=True, exclude={"open_questions"}),
-        benchmark=benchmark.replace("livebench_", "LiveBench "),
+        benchmark_name=benchmark.replace("livebench_", "LiveBench ").replace("_", " "),
+        benchmark_blurb=blurb,
         candidates=_candidate_lines(state.candidates, benchmark),
         kb="\n\n".join(state.kb_context)[:3500])
     state.activity.append(f"Ranking {len(state.candidates)} catalog candidates")
@@ -242,9 +243,11 @@ def recommend(state: AgentState, llm: LLMClient, conn: sqlite3.Connection,
 
     state.recommendation = _build_payload(plan, state, conn, benchmark, usd_to_inr)
     top = state.recommendation.picks[0]
-    how = "run it on your machine" if top.mode == "local" else "use it via API"
-    state.reply = (state.reply_prefix +
-                   f"Here is my recommendation. Top pick: {top.name} "
-                   f"(best to {how}). {top.why}")
+    narrative = plan.reply.strip()
+    if not narrative:  # deterministic fallback only when the LLM gave nothing
+        how = "run it on your machine" if top.mode == "local" else "use it via API"
+        narrative = (f"Here is my recommendation. Top pick: {top.name} "
+                     f"(best to {how}). {top.why}")
+    state.reply = (state.reply_prefix + narrative).strip()
     state.phase = Phase.done
     return state

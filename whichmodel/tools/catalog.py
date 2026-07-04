@@ -27,6 +27,34 @@ CATEGORY_BENCHMARKS: dict[TaskCategory, tuple[str, str]] = {
 }
 
 MIN_CONTEXT = {ContextNeed.short: 0, ContextNeed.medium: 32_000, ContextNeed.long: 131_000}
+
+# Plain-language one-liners for every benchmark key the catalog can contain.
+# Injected into the recommend prompt and the card legend so a score is never
+# shown without saying what it measures.
+BENCHMARK_BLURBS = {
+    "livebench_global": "LiveBench is an exam refreshed every few months so models cannot "
+                        "memorize it; the global score averages reasoning, coding, math, "
+                        "language, and instruction-following (0-100).",
+    "livebench_coding": "LiveBench coding: fresh programming problems scored by running "
+                        "the code, refreshed so models cannot memorize answers (0-100).",
+    "livebench_agentic_coding": "LiveBench agentic coding: multi-step tasks in real "
+                                "JavaScript/TypeScript/Python repos, the closest public "
+                                "measure of an AI actually working in a codebase (0-100).",
+    "livebench_reasoning": "LiveBench reasoning: fresh logic puzzles (spatial, deduction) "
+                           "that reward careful thinking over memorization (0-100).",
+    "livebench_mathematics": "LiveBench math: competition-style problems refreshed "
+                             "regularly to prevent memorized answers (0-100).",
+    "livebench_data_analysis": "LiveBench data analysis: table wrangling, joining and "
+                               "reformatting messy data (0-100).",
+    "livebench_language": "LiveBench language: comprehension, editing and wordplay tasks, "
+                          "a good proxy for careful reading and writing (0-100).",
+    "livebench_if": "LiveBench instruction following: whether the model does exactly what "
+                    "was asked (paraphrase, simplify, summarize), key for bots that must "
+                    "stay on script (0-100).",
+    "aider_polyglot": "Aider polyglot: 225 hard exercises across 6 programming languages, "
+                      "measuring how reliably a model edits real code with a pair-"
+                      "programming tool (percent solved).",
+}
 Q4_BYTES_PER_PARAM = 0.60
 MEMORY_OVERHEAD = 1.2
 

@@ -172,9 +172,11 @@ def ask_clarifying(state: AgentState, llm: LLMClient) -> AgentState:
     system = prompts.CLARIFY_SYSTEM.format(
         n=n, gaps=", ".join(gaps), asked="\n".join(f"- {q}" for q in asked) or "- none yet",
         kb="\n\n".join(state.kb_context)[:3000])
+    ack = ""
     try:
-        qs = structured(llm, system, state.messages[-4:], ClarifyingQuestions, max_tokens=200)
+        qs = structured(llm, system, state.messages[-4:], ClarifyingQuestions, max_tokens=300)
         questions = [q for q in qs.questions[:2] if not _is_repeat(q, asked)]
+        ack = qs.acknowledgement.strip()
     except StructuredOutputError:
         questions = []
     if not questions:  # LLM broken or everything it produced was a repeat
@@ -186,7 +188,8 @@ def ask_clarifying(state: AgentState, llm: LLMClient) -> AgentState:
         return state
     state.asked_questions.extend(questions)
     state.requirements.open_questions = questions
-    state.reply = (state.reply_prefix + " ".join(questions)).strip()
+    parts = [state.reply_prefix.strip(), ack, " ".join(questions)]
+    state.reply = " ".join(p for p in parts if p).strip()
     state.phase = Phase.eliciting
     return state
 

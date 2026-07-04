@@ -90,8 +90,9 @@ def merge_patch(req: Requirements, patch: RequirementsPatch,
 
 
 class PickPlan(BaseModel):
-    """The recommend LLM's only job: choose candidate ids and explain why."""
+    """The recommend LLM's output: candidate ids, a conversational reply, whys."""
 
+    reply: str = ""  # the narrative answer shown to the user, reasoning first
     top_pick_id: str
     runner_up_id: str | None = None
     budget_pick_id: str | None = None
@@ -103,6 +104,7 @@ class PickPlan(BaseModel):
 
 
 class ClarifyingQuestions(BaseModel):
-    """Next questions to ask (1-2), grounded in KB context."""
+    """A brief human acknowledgement plus the next 1-2 questions."""
 
+    acknowledgement: str = ""
     questions: list[str] = Field(min_length=1, max_length=2)
