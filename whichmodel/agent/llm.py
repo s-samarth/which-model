@@ -89,13 +89,46 @@ def _strip_fences(text: str) -> str:
     return t[start : end + 1] if start != -1 and end > start else t
 
 
+def _skeleton(model_cls: type[BaseModel]) -> str:
+    """Compact field guide, e.g. {"deployment": "local|api|either|null", ...}.
+
+    A 4B model handed a full JSON schema tends to echo the schema back or pad
+    every null field until it hits the token limit; a terse skeleton avoids both.
+    """
+    schema = model_cls.model_json_schema()
+    defs = schema.get("$defs", {})
+
+    def render(prop: dict) -> str:
+        if "$ref" in prop:
+            resolved = defs.get(prop["$ref"].split("/")[-1], {})
+            return render(resolved) if "enum" in resolved else render_obj(resolved)
+        if "anyOf" in prop:
+            opts = [render(p) for p in prop["anyOf"] if p.get("type") != "null"]
+            return (opts[0] if opts else '"?"') + "|null"
+        if "enum" in prop:
+            return '"' + "|".join(str(v) for v in prop["enum"]) + '"'
+        t = prop.get("type", "string")
+        if t == "array":
+            return f"[{render(prop.get('items', {}))}]"
+        if t == "object":
+            return render_obj(prop)
+        return {"number": "0", "integer": "0", "boolean": "true|false"}.get(t, '"text"')
+
+    def render_obj(obj_schema: dict) -> str:
+        props = obj_schema.get("properties", {})
+        inner = ", ".join(f'"{k}": {render(v)}' for k, v in props.items())
+        return "{" + inner + "}"
+
+    return render_obj(schema)
+
+
 def structured(llm: LLMClient, system: str, messages: list[dict], model_cls: type[T],
                *, max_tokens: int = 700) -> T:
     """Get a validated pydantic object out of the LLM, with one repair round."""
-    schema_hint = json.dumps(model_cls.model_json_schema(), separators=(",", ":"))
     sys_prompt = (
-        f"{system}\n\nRespond with ONLY a JSON object matching this schema "
-        f"(no prose, no markdown):\n{schema_hint}"
+        f"{system}\n\nRespond with ONLY one JSON object, no prose, no markdown. "
+        f"Omit fields you have nothing to say about. Output actual values, never "
+        f"a schema. Fields:\n{_skeleton(model_cls)}"
     )
     convo = list(messages)
     last_err: Exception | None = None

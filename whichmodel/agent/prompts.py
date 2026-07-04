@@ -11,7 +11,9 @@ agentic_tool_use, image_understanding, creative_writing, web_search_heavy, \
 translation, other.
 deployment: local (runs on their machine, offline, private), api (cloud), \
 either. If the user says they are unsure, do not care, or "you decide" about \
-where it runs, set deployment="either", do not leave it null.
+where it runs, set deployment="either", do not leave it null. A pivot like \
+"what if I want a local LLM / to host it myself" means deployment="local", \
+overriding anything said earlier.
 budget: copy the stated number into budget_amount and set budget_currency to \
 "usd" or "inr". Never convert currencies yourself.
 context_need: short (chat), medium (single documents), long (books, codebases, \

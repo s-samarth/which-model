@@ -79,7 +79,7 @@ def extract(state: AgentState, llm: LLMClient, usd_to_inr: float = 84.0) -> Agen
     if state.summary:
         window = [{"role": "system", "content": f"Earlier: {state.summary}"}, *window]
     try:
-        patch = structured(llm, system, window, RequirementsPatch, max_tokens=400)
+        patch = structured(llm, system, window, RequirementsPatch, max_tokens=700)
         state.requirements = merge_patch(state.requirements, patch, usd_to_inr)
         # The small model flags this spuriously on first contact; trust it only
         # once the user has had a real chance to be asked something.
