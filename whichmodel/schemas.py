@@ -117,6 +117,8 @@ class Pick(BaseModel):
     name: str
     role: str  # top_pick | runner_up | budget_pick
     why: str
+    mode: str = "api"  # api | local: how this user should run it
+    get_started: str = ""  # concrete first step (signup or ollama pull)
     monthly_cost_usd: float | None = None
     monthly_cost_inr: float | None = None
     ollama_tag: str | None = None
@@ -129,4 +131,6 @@ class Recommendation(BaseModel):
     comparison: list[dict] = Field(default_factory=list)  # table rows for the UI
     assumptions: list[str] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
+    score_legend: str = ""  # what the score column means, in plain language
+    cost_basis: str = ""  # how the monthly estimates were computed
     data_age: str = ""

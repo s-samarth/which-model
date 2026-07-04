@@ -164,3 +164,81 @@ class TestSummarization:
         state = maybe_summarize(state, llm)
         assert len(state.messages) == 6
         assert "coding" in state.summary
+
+
+class TestFeedbackRegressions:
+    """Bugs found in real user testing (screenshots, 2026-07-04)."""
+
+    def test_recommend_now_not_sticky_after_done(self, retriever):
+        """Follow-up after a recommendation must re-elicit, not replay."""
+        llm = queue(
+            {"task_category": "chat_assistant", "deployment": "api",
+             "budget_amount": 20, "budget_currency": "usd",
+             "wants_recommendation_now": True},
+            {"top_pick_id": "X", "why_top": "x"},  # falls back deterministically
+            # turn 2: user pivots to local; extraction updates deployment
+            {"deployment": "local"},
+        )
+        deps = make_deps(llm, retriever)
+        state = turn(deps, AgentState(), "chatbot, cloud, $20, just pick one")
+        assert state.phase == Phase.done
+        state = turn(deps, state, "what if I want a local LLM hosted myself?")
+        # must NOT short-circuit to another recommendation; hardware is unknown
+        assert state.phase == Phase.probing_hardware
+        assert state.recommendation is None
+
+    def test_inr_budget_converted_deterministically(self, retriever):
+        llm = queue({"budget_amount": 2000, "budget_currency": "inr"},
+                    {"questions": ["What will you mainly use it for?"]})
+        deps = make_deps(llm, retriever)
+        state = turn(deps, AgentState(), "my budget is 2000 rupees a month")
+        assert state.requirements.budget_monthly_usd == round(2000 / 84.0, 2)
+
+    def test_repeated_question_is_suppressed(self, retriever):
+        q = "Will customers ask mostly simple questions, or complex problem-solving?"
+        llm = queue(
+            {"task_category": "chat_assistant"},
+            {"questions": [q]},
+            {},  # turn 2 extraction learns nothing
+            {"questions": [q]},  # LLM tries to re-ask the exact same thing
+        )
+        deps = make_deps(llm, retriever)
+        state = turn(deps, AgentState(), "customer service chatbot for my food business")
+        assert q in state.asked_questions
+        state = turn(deps, state, "honestly I am not sure about any of this")
+        assert state.reply != q, "verbatim repeat must be suppressed"
+
+    def test_plan_sanitizer_fixes_low_ranked_runner_up(self, retriever):
+        conn = catalog.connect(SEED_DB)
+        from whichmodel.schemas import Deployment, Requirements, TaskCategory
+        cands = catalog.find_candidates(
+            conn, Requirements(task_category=TaskCategory.chat_assistant,
+                               deployment=Deployment.api))
+        low = cands[-1]  # worst-ranked candidate
+        llm = queue(
+            {"task_category": "chat_assistant", "deployment": "api",
+             "wants_recommendation_now": True},
+            {"top_pick_id": cands[0].id, "runner_up_id": low.id,
+             "why_top": "Best score.", "why_runner_up": "Vibes."},
+        )
+        deps = make_deps(llm, retriever)
+        state = turn(deps, AgentState(), "chat model, cloud, just pick")
+        runner = next(p for p in state.recommendation.picks if p.role == "runner_up")
+        top4 = {m.id for m in state.candidates[:4]}
+        assert runner.model_id in top4
+
+    def test_payload_has_explanations_and_ordered_table(self, retriever):
+        llm = queue({"task_category": "coding", "deployment": "api",
+                     "wants_recommendation_now": True},
+                    {"top_pick_id": "Z", "why_top": "z"})
+        deps = make_deps(llm, retriever)
+        state = turn(deps, AgentState(), "coding model, cloud, just pick")
+        rec = state.recommendation
+        assert "LiveBench" in rec.score_legend
+        assert "tokens per month" in rec.cost_basis
+        pick_ids = [p.model_id for p in rec.picks]
+        table_ids = [r["model_id"] for r in rec.comparison]
+        assert table_ids[: len(pick_ids)] == pick_ids, "picks must lead the table"
+        for p in rec.picks:
+            assert p.get_started, "every pick needs a concrete first step"
+            assert p.mode in ("api", "local")

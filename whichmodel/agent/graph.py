@@ -55,7 +55,7 @@ def build_graph(deps: AgentDeps):
     g = StateGraph(AgentState)
 
     g.add_node("router", ne.router)
-    g.add_node("extract", partial(ne.extract, llm=deps.llm))
+    g.add_node("extract", partial(ne.extract, llm=deps.llm, usd_to_inr=deps.usd_to_inr))
     g.add_node("probe_parse", ne.probe_parse)
     g.add_node("hardware_probe", partial(ne.hardware_probe, snippets_path=deps.snippets_path))
     g.add_node("retrieve_clarify",
@@ -82,7 +82,12 @@ def build_graph(deps: AgentDeps):
     })
     g.add_edge("hardware_probe", END)
     g.add_edge("retrieve_clarify", "ask_clarifying")
-    g.add_edge("ask_clarifying", END)
+    # If every remaining question was already asked, stop interrogating and
+    # recommend with what we have.
+    g.add_conditional_edges(
+        "ask_clarifying",
+        lambda s: "retrieve_recommend" if (s.recommend_now and not s.reply) else "end",
+        {"retrieve_recommend": "retrieve_recommend", "end": END})
     g.add_edge("retrieve_recommend", "query_catalog")
     g.add_edge("query_catalog", "recommend")
     g.add_edge("recommend", END)

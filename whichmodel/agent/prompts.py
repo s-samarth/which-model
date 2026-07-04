@@ -10,7 +10,10 @@ task_category one of: coding, chat_assistant, rag_doc_qa, summarization, \
 agentic_tool_use, image_understanding, creative_writing, web_search_heavy, \
 translation, other.
 deployment: local (runs on their machine, offline, private), api (cloud), \
-either. budget_monthly_usd: number if a budget is stated (convert INR at 84/USD). \
+either. If the user says they are unsure, do not care, or "you decide" about \
+where it runs, set deployment="either", do not leave it null.
+budget: copy the stated number into budget_amount and set budget_currency to \
+"usd" or "inr". Never convert currencies yourself.
 context_need: short (chat), medium (single documents), long (books, codebases, \
 100+ pages). usage_level: light, moderate, heavy.
 
@@ -22,8 +25,10 @@ CLARIFY_SYSTEM = """\
 You help a non-expert pick an AI model. Ask the {n} most useful clarifying \
 question(s) to fill these gaps: {gaps}. One short sentence per question, plain \
 language, no jargon (say "very long documents" not "context window"). Ground \
-concrete details in the reference notes below. Do not name specific models. \
-Do not repeat questions already asked.
+concrete details in the reference notes below. Do not name specific models.
+
+Questions already asked, NEVER ask these or rephrasings of them again:
+{asked}
 
 Reference notes:
 {kb}

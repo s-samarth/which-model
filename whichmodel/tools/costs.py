@@ -36,3 +36,14 @@ def estimate_monthly_usd(model: ModelRow, usage_level: str | None) -> float | No
 def usd_to_inr(usd: float | None, rate: float) -> float | None:
     """Convert USD to INR for display; None passes through."""
     return None if usd is None else round(usd * rate)
+
+
+def basis_text(usage_level: str | None) -> str:
+    """One-line, honest explanation of how monthly estimates are computed."""
+    level = usage_level or DEFAULT_USAGE
+    tokens_in, tokens_out = USAGE_TOKENS_PER_MONTH.get(level, USAGE_TOKENS_PER_MONTH[
+        DEFAULT_USAGE])
+    return (f"Monthly estimates assume {level} use, about {tokens_in / 1e6:.1f}M input + "
+            f"{tokens_out / 1e6:.1f}M output tokens per month, multiplied by each model's "
+            "per-million-token prices. Cached-input discounts are not modeled, so real "
+            "bills often come in lower.")

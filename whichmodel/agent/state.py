@@ -34,8 +34,10 @@ class AgentState(BaseModel):
     candidates: list[ModelRow] = Field(default_factory=list)
     phase: Phase = Phase.eliciting
     user_turns: int = 0
-    recommend_now: bool = False  # user asked to skip ahead
+    recommend_now: bool = False  # this turn only; router resets it
     pending_probe: bool = False  # we asked the user to run a probe snippet
+    asked_questions: list[str] = Field(default_factory=list)  # never repeat these
+    activity: list[str] = Field(default_factory=list)  # per-turn: what the agent did
     # Per-turn outputs consumed by the web layer:
     reply: str = ""
     recommendation: Recommendation | None = None
@@ -43,12 +45,17 @@ class AgentState(BaseModel):
 
 
 class RequirementsPatch(BaseModel):
-    """What the extraction LLM may update this turn. All fields optional."""
+    """What the extraction LLM may update this turn. All fields optional.
+
+    Budget arrives as amount + currency; the app converts to USD itself so the
+    small model never does arithmetic (a 4B once turned 2000 INR into $2.38).
+    """
 
     task_category: TaskCategory | None = None
     task_description: str | None = None
     deployment: Deployment | None = None
-    budget_monthly_usd: float | None = None
+    budget_amount: float | None = None
+    budget_currency: str | None = None  # "usd" | "inr"
     hardware: Hardware | None = None
     context_need: ContextNeed | None = None
     latency_need: Level | None = None
@@ -58,10 +65,13 @@ class RequirementsPatch(BaseModel):
     wants_recommendation_now: bool = False
 
 
-def merge_patch(req: Requirements, patch: RequirementsPatch) -> Requirements:
-    """Non-None patch fields win; hardware merges field-wise."""
+def merge_patch(req: Requirements, patch: RequirementsPatch,
+                usd_to_inr: float = 84.0) -> Requirements:
+    """Non-None patch fields win; hardware merges field-wise; currency is
+    converted here, deterministically, never by the LLM."""
     data = req.model_dump()
-    for field, value in patch.model_dump(exclude={"wants_recommendation_now"}).items():
+    skip = {"wants_recommendation_now", "budget_amount", "budget_currency"}
+    for field, value in patch.model_dump(exclude=skip).items():
         if value is None:
             continue
         if field == "hardware" and req.hardware is not None:
@@ -70,6 +80,11 @@ def merge_patch(req: Requirements, patch: RequirementsPatch) -> Requirements:
             data["hardware"] = merged
         else:
             data[field] = value
+    if patch.budget_amount is not None:
+        amount = patch.budget_amount
+        if (patch.budget_currency or "usd").lower() in ("inr", "rupees", "rs"):
+            amount = amount / usd_to_inr
+        data["budget_monthly_usd"] = round(amount, 2)
     return Requirements(**data)
 
 

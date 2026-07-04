@@ -52,10 +52,11 @@ def last_user_message(state: AgentState) -> str:
 def router(state: AgentState) -> AgentState:
     """Deterministic turn routing; semantic nuances are handled by extraction."""
     state.user_turns += 1
-    msg = last_user_message(state)
-    if IMPATIENCE_RE.search(msg):
-        state.recommend_now = True
-    state.reply, state.recommendation, state.notices, state.kb_context = "", None, [], []
+    # recommend_now is a per-turn signal. It must NOT persist: a sticky flag
+    # made every post-recommendation follow-up short-circuit to a stale answer.
+    state.recommend_now = bool(IMPATIENCE_RE.search(last_user_message(state)))
+    state.reply, state.recommendation, state.notices = "", None, []
+    state.kb_context, state.activity = [], []
     return state
 
 
@@ -65,17 +66,21 @@ def route_message(state: AgentState) -> str:
     return "extract"
 
 
-def extract(state: AgentState, llm: LLMClient) -> AgentState:
+def extract(state: AgentState, llm: LLMClient, usd_to_inr: float = 84.0) -> AgentState:
     """LLM structured extraction with repair; falls back to asking directly."""
+    state.activity.append("Reading your message for requirements")
     system = prompts.EXTRACT_SYSTEM.format(
         requirements=state.requirements.model_dump_json(exclude_none=True,
                                                         exclude={"open_questions"}))
-    window = state.messages[-6:]
+    # Long assistant replies (recommendation text) would drown a small model;
+    # the requirements object is the real memory, so clip each message hard.
+    window = [{"role": m["role"], "content": m["content"][:400]}
+              for m in state.messages[-6:]]
     if state.summary:
         window = [{"role": "system", "content": f"Earlier: {state.summary}"}, *window]
     try:
         patch = structured(llm, system, window, RequirementsPatch, max_tokens=400)
-        state.requirements = merge_patch(state.requirements, patch)
+        state.requirements = merge_patch(state.requirements, patch, usd_to_inr)
         if patch.wants_recommendation_now:
             state.recommend_now = True
     except StructuredOutputError:
@@ -130,22 +135,46 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
         if lb := retriever.get("benchmarks/livebench"):  # round 2 of 2
             docs.append(lb)
     state.kb_context = [f"[{d.name}]\n{d.text[:DOC_TRIM_CHARS]}" for d in docs[:4]]
+    state.activity.extend(f"Reading knowledge base: {d.name}" for d in docs[:4])
     state.phase = Phase.retrieving
     return state
 
 
+def _is_repeat(question: str, asked: list[str]) -> bool:
+    """Cheap similarity: shared 4+ letter word overlap above half the question."""
+    words = {w for w in re.findall(r"[a-z]{4,}", question.lower())}
+    if not words:
+        return False
+    return any(len(words & {w for w in re.findall(r"[a-z]{4,}", a.lower())}) / len(words) > 0.6
+               for a in asked)
+
+
 def ask_clarifying(state: AgentState, llm: LLMClient) -> AgentState:
-    """Ask 1-2 grounded questions; canned questions if the LLM output is broken."""
+    """Ask 1-2 grounded questions; canned questions if the LLM output is broken.
+
+    Previously-asked questions are injected into the prompt and re-checked
+    here, because a small model will happily re-ask (seen in user testing).
+    """
+    state.activity.append("Deciding what to ask next")
     gaps = _gaps(state)
     n = min(2, len(gaps)) or 1
+    asked = state.asked_questions[-8:]
     system = prompts.CLARIFY_SYSTEM.format(
-        n=n, gaps=", ".join(gaps), kb="\n\n".join(state.kb_context)[:3000])
+        n=n, gaps=", ".join(gaps), asked="\n".join(f"- {q}" for q in asked) or "- none yet",
+        kb="\n\n".join(state.kb_context)[:3000])
     try:
         qs = structured(llm, system, state.messages[-4:], ClarifyingQuestions, max_tokens=200)
-        questions = qs.questions[:2]
+        questions = [q for q in qs.questions[:2] if not _is_repeat(q, asked)]
     except StructuredOutputError:
-        questions = [FALLBACK_QUESTIONS.get(g, FALLBACK_QUESTIONS["task_category"])
-                     for g in gaps[:2]]
+        questions = []
+    if not questions:  # LLM broken or everything it produced was a repeat
+        questions = [FALLBACK_QUESTIONS[g] for g in gaps[:2]
+                     if g in FALLBACK_QUESTIONS and not _is_repeat(FALLBACK_QUESTIONS[g], asked)]
+    if not questions:  # nothing new left to ask; stop interrogating
+        state.recommend_now = True
+        state.reply = ""
+        return state
+    state.asked_questions.extend(questions)
     state.requirements.open_questions = questions
     state.reply = " ".join(questions)
     state.phase = Phase.eliciting
