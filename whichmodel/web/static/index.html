@@ -20,6 +20,9 @@
   <form id="composer" autocomplete="off">
     <textarea id="input" rows="1" placeholder="e.g. I want a chatbot for my shop…"
               aria-label="Your message" required></textarea>
+    <button id="recommend-now" type="button" hidden
+            title="Skip the questions and recommend with what I've said so far">
+      Recommend now</button>
     <button id="send" type="submit" aria-label="Send">Send</button>
   </form>
 
@@ -44,5 +47,6 @@
   </template>
 
   <script src="/static/app.js"></script>
+  <script src="/static/rec-card.js"></script>
 </body>
 </html>

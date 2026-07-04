@@ -56,7 +56,7 @@ def router(state: AgentState) -> AgentState:
     # made every post-recommendation follow-up short-circuit to a stale answer.
     state.recommend_now = bool(IMPATIENCE_RE.search(last_user_message(state)))
     state.reply, state.recommendation, state.notices = "", None, []
-    state.kb_context, state.activity = [], []
+    state.kb_context, state.activity, state.reply_prefix = [], [], ""
     return state
 
 
@@ -134,7 +134,9 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
     if purpose == "recommend" and not any(d.name == "benchmarks/livebench" for d in docs):
         if lb := retriever.get("benchmarks/livebench"):  # round 2 of 2
             docs.append(lb)
-    state.kb_context = [f"[{d.name}]\n{d.text[:DOC_TRIM_CHARS]}" for d in docs[:4]]
+    web_chunks = [c for c in state.kb_context if c.startswith("[web")]
+    state.kb_context = web_chunks + [f"[{d.name}]\n{d.text[:DOC_TRIM_CHARS]}"
+                                     for d in docs[:4]]
     state.activity.extend(f"Reading knowledge base: {d.name}" for d in docs[:4])
     state.phase = Phase.retrieving
     return state
@@ -176,8 +178,43 @@ def ask_clarifying(state: AgentState, llm: LLMClient) -> AgentState:
         return state
     state.asked_questions.extend(questions)
     state.requirements.open_questions = questions
-    state.reply = " ".join(questions)
+    state.reply = (state.reply_prefix + " ".join(questions)).strip()
     state.phase = Phase.eliciting
+    return state
+
+
+def web_lookup(state: AgentState, provider, conn) -> AgentState:
+    """Search the web for model names the catalog does not know, or on request.
+
+    Results enter kb_context as labeled chunks and the finding is reported to
+    the user via reply_prefix. Picks still come only from the catalog.
+    """
+    from whichmodel.tools import websearch
+
+    if provider is None:
+        return state
+    msg = last_user_message(state)
+    unknown = websearch.unknown_model_mentions(msg, conn)
+    queries = [f"{name} AI model" for name in unknown]
+    if websearch.wants_web_search(msg) and not queries:
+        queries = [msg[:90]]
+    notes = []
+    for name, query in zip(unknown or ["your question"], queries, strict=False):
+        state.activity.append(f'Searching the web: "{query}"')
+        results = provider.search(query, k=3)
+        state.activity.extend(f"Reading: {r.url}" for r in results)
+        if results:
+            joined = "\n".join(f"- {r.title}: {r.snippet} ({r.url})" for r in results)
+            state.kb_context.append(f"[web search: {query}]\n{joined}")
+            if name != "your question":
+                notes.append(
+                    f'"{name}" is not in my catalog, so I cannot recommend it, but the '
+                    f'web says: {results[0].title} ({results[0].url}).')
+        elif name != "your question":
+            notes.append(f'"{name}" is not in my catalog and a web search found '
+                         "nothing solid either; it may not exist.")
+    if notes:
+        state.reply_prefix = " ".join(notes) + "\n\n"
     return state
 
 

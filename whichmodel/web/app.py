@@ -4,13 +4,15 @@ A signed-enough random cookie keys the server-side session. A tool or LLM
 failure never crashes the conversation; the user gets a clean degraded reply.
 """
 
+import asyncio
+import json
 import logging
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Cookie, FastAPI, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -44,6 +46,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
     conn = catalog.connect(settings.db_path)
+    from whichmodel.tools.websearch import make_provider
+
     deps = AgentDeps(
         llm=OpenAICompatClient(settings),
         retriever=build_retriever(load_kb(settings.kb_dir), settings),
@@ -51,6 +55,7 @@ async def lifespan(app: FastAPI):
         db_path=str(settings.db_path),
         snippets_path=settings.snippets_path,
         usd_to_inr=settings.usd_to_inr,
+        search_provider=make_provider(settings.web_search),
     )
     app.state.deps = deps
     app.state.graph = build_graph(deps)
@@ -90,13 +95,67 @@ async def chat(req: ChatRequest, response: Response,
                    f"(Catalog data: refreshed {age}.)"),
             phase=state.phase, data_age=age)
     store.put(sid, state)
+    return ChatResponse(**_final_payload(state, deps))
+
+
+def _final_payload(state: AgentState, deps) -> dict:
     return ChatResponse(
         reply=state.reply,
         phase=state.phase,
         recommendation=state.recommendation.model_dump() if state.recommendation else None,
         notices=[n for n in state.notices if not n.endswith("_failed")],
         data_age=catalog.data_age(deps.conn),
-    )
+    ).model_dump()
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, wm_session: str | None = Cookie(default=None)):
+    """Same as /chat but streams SSE activity events while the agent works,
+    then a final event with the full response payload."""
+    from whichmodel.agent.graph import run_turn_stream
+
+    sid = wm_session or uuid.uuid4().hex
+    store, deps = app.state.sessions, app.state.deps
+    state = store.get(sid) or AgentState()
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    DONE = object()
+
+    def emit(text: str) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, {"type": "activity", "text": text})
+
+    def worker():
+        try:
+            return run_turn_stream(app.state.graph, deps, state, req.message, emit)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, DONE)
+
+    async def gen():
+        yield f"data: {json.dumps({'type': 'activity', 'text': 'Thinking'})}\n\n"
+        future = loop.run_in_executor(None, worker)
+        while True:
+            item = await queue.get()
+            if item is DONE:
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+        try:
+            new_state = await future
+            store.put(sid, new_state)
+            payload = {"type": "final", **_final_payload(new_state, deps)}
+        except Exception:
+            log.exception("streamed turn failed")
+            payload = {"type": "final", "reply":
+                       ("I hit a problem talking to my reasoning model just now. Your "
+                        "answers are saved, please send that again in a moment."),
+                       "phase": state.phase, "recommendation": None, "notices": [],
+                       "data_age": catalog.data_age(deps.conn)}
+        yield f"data: {json.dumps(payload)}\n\n"
+
+    resp = StreamingResponse(gen(), media_type="text/event-stream")
+    if wm_session is None:
+        resp.set_cookie("wm_session", sid, httponly=True, samesite="lax")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @app.post("/reset")

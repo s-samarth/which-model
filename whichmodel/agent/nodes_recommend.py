@@ -243,7 +243,8 @@ def recommend(state: AgentState, llm: LLMClient, conn: sqlite3.Connection,
     state.recommendation = _build_payload(plan, state, conn, benchmark, usd_to_inr)
     top = state.recommendation.picks[0]
     how = "run it on your machine" if top.mode == "local" else "use it via API"
-    state.reply = (f"Here is my recommendation. Top pick: {top.name} "
+    state.reply = (state.reply_prefix +
+                   f"Here is my recommendation. Top pick: {top.name} "
                    f"(best to {how}). {top.why}")
     state.phase = Phase.done
     return state

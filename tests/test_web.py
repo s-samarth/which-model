@@ -105,3 +105,60 @@ class TestSessionStore:
         assert store.get("a") is not None
         t[0] += 11
         assert store.get("a") is None
+
+
+class TestStreamAndSearch:
+    def test_chat_stream_emits_activity_then_final(self):
+        llm = queue({"task_category": "coding"}, {"questions": ["Any budget in mind?"]})
+        client = make_client(llm)
+        try:
+            with client.stream("POST", "/chat/stream",
+                               json={"message": "help me with coding"}) as resp:
+                assert resp.status_code == 200
+                events = []
+                for line in resp.iter_lines():
+                    if line.startswith("data: "):
+                        import json as j
+                        events.append(j.loads(line[6:]))
+            types = [e["type"] for e in events]
+            assert types[-1] == "final"
+            assert "activity" in types[:-1]
+            texts = [e.get("text", "") for e in events if e["type"] == "activity"]
+            assert any("knowledge base" in t for t in texts)
+            assert events[-1]["phase"] == "eliciting"
+        finally:
+            client.__exit__(None, None, None)
+
+    def test_unknown_model_detection(self):
+        import sqlite3
+
+        from whichmodel.tools import websearch
+        conn = sqlite3.connect(ROOT / "data" / "models.db")
+        conn.row_factory = sqlite3.Row
+        found = websearch.unknown_model_mentions(
+            "should I use SuperGPT-9000-Ultra for my startup?", conn)
+        assert found == ["SuperGPT-9000-Ultra"]
+        # known models and hardware tokens must not trigger a search
+        assert websearch.unknown_model_mentions("is claude-sonnet-5 good?", conn) == []
+        assert websearch.unknown_model_mentions("I have an RTX 4070 with 12GB", conn) == []
+
+    def test_web_lookup_feeds_context_and_prefix(self):
+        import sqlite3
+
+        from whichmodel.agent.nodes_elicit import web_lookup
+        from whichmodel.agent.state import AgentState
+        from whichmodel.tools import websearch
+        conn = sqlite3.connect(ROOT / "data" / "models.db")
+        conn.row_factory = sqlite3.Row
+
+        class FakeSearch:
+            def search(self, q, k=3):
+                return [websearch.SearchResult("MegaLLM-7 review", "https://x.example",
+                                               "A hobby project, not a real product.")]
+
+        state = AgentState(messages=[{"role": "user",
+                                      "content": "I heard MegaLLM-7000 is the best?"}])
+        state = web_lookup(state, FakeSearch(), conn)
+        assert any(c.startswith("[web search") for c in state.kb_context)
+        assert "MegaLLM-7000" in state.reply_prefix
+        assert any("Searching the web" in a for a in state.activity)

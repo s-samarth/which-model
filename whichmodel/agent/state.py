@@ -38,6 +38,7 @@ class AgentState(BaseModel):
     pending_probe: bool = False  # we asked the user to run a probe snippet
     asked_questions: list[str] = Field(default_factory=list)  # never repeat these
     activity: list[str] = Field(default_factory=list)  # per-turn: what the agent did
+    reply_prefix: str = ""  # deterministic note (e.g. web-search finding) shown first
     # Per-turn outputs consumed by the web layer:
     reply: str = ""
     recommendation: Recommendation | None = None

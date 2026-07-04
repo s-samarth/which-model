@@ -31,6 +31,7 @@ class AgentDeps:
     db_path: str
     snippets_path: Path
     usd_to_inr: float = 84.0
+    search_provider: object | None = None  # tools.websearch.SearchProvider
 
 
 def maybe_summarize(state: AgentState, llm: LLMClient) -> AgentState:
@@ -67,10 +68,14 @@ def build_graph(deps: AgentDeps):
     g.add_node("recommend", partial(nr.recommend, llm=deps.llm, conn=deps.conn,
                                     db_path=deps.db_path, usd_to_inr=deps.usd_to_inr))
 
+    g.add_node("web_lookup", partial(ne.web_lookup, provider=deps.search_provider,
+                                     conn=deps.conn))
+
     g.add_edge(START, "router")
     g.add_conditional_edges("router", ne.route_message,
                             {"probe_parse": "probe_parse", "extract": "extract"})
-    g.add_conditional_edges("extract", ne.readiness, {
+    g.add_edge("extract", "web_lookup")  # no-ops instantly when nothing to search
+    g.add_conditional_edges("web_lookup", ne.readiness, {
         "retrieve_recommend": "retrieve_recommend",
         "hardware_probe": "hardware_probe",
         "retrieve_clarify": "retrieve_clarify",
@@ -104,3 +109,21 @@ def run_turn(app, deps: AgentDeps, state: AgentState, user_message: str) -> Agen
     if new_state.reply:
         new_state.messages.append({"role": "assistant", "content": new_state.reply})
     return new_state
+
+
+def run_turn_stream(app, deps: AgentDeps, state: AgentState, user_message: str,
+                    emit) -> AgentState:
+    """run_turn, but activity lines are pushed to `emit` as each node finishes,
+    so the UI can show what the agent is doing while it works."""
+    state.messages.append({"role": "user", "content": user_message})
+    state = maybe_summarize(state, deps.llm)
+    seen = 0
+    latest = state
+    for step in app.stream(state, stream_mode="values"):
+        latest = AgentState.model_validate(step)
+        for line in latest.activity[seen:]:
+            emit(line)
+        seen = len(latest.activity)
+    if latest.reply:
+        latest.messages.append({"role": "assistant", "content": latest.reply})
+    return latest
