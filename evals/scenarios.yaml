@@ -1,0 +1,131 @@
+# Scripted eval scenarios. Each runs a fresh session through the graph.
+# turns: user messages sent in order. probe_output: pasted when the agent asks
+# to run a hardware probe. After scripted turns, the driver nudges with
+# "just give me your best recommendation" until done or max_turns.
+scenarios:
+  - name: college-student-free-coding
+    turns:
+      - "I'm a college student and want help with coding assignments, I can't pay anything"
+      - "cloud is fine, I use it maybe an hour a day"
+    expect:
+      fields: [task_category, deployment]
+      task_category: coding
+      max_pick_monthly_usd: 0
+
+  - name: macbook-air-offline-chatbot
+    turns:
+      - "I want an offline chatbot running on my MacBook Air, fully private"
+    probe_output: |
+      Chip: Apple M2
+      Memory: 16 GB
+      15.5
+    expect:
+      fields: [task_category, deployment, hardware]
+      deployment: local
+      picks_local: true
+
+  - name: startup-legal-rag-privacy
+    turns:
+      - "We're a startup building RAG over legal PDFs, privacy sensitive, budget around $200 a month"
+      - "cloud API is acceptable if reputable, we use it heavily every day"
+    expect:
+      fields: [task_category, deployment, budget_monthly_usd]
+      task_category: rag_doc_qa
+
+  - name: impatient-just-tell-me
+    turns:
+      - "just tell me the best model"
+    expect:
+      done_within: 1
+
+  - name: shop-chatbot-hindi
+    turns:
+      - "I run a shop in Jaipur and want a chatbot that talks to customers in Hindi"
+      - "cloud is fine, maybe $10 a month, light use"
+    expect:
+      fields: [task_category, language_needs]
+      task_category: chat_assistant
+
+  - name: summarize-legal-pdfs
+    turns:
+      - "I need to summarize legal PDFs, usually 30-40 pages each"
+      - "cloud api, moderate use, $50 a month is fine"
+    expect:
+      fields: [task_category, deployment]
+      task_category: summarization
+
+  - name: heavy-coding-agent
+    turns:
+      - "I want an AI agent for serious coding work in my terminal, several hours a day"
+      - "cloud, $200 a month budget"
+    expect:
+      fields: [task_category, budget_monthly_usd]
+      picks_within_budget: 200
+
+  - name: receipts-image-ocr
+    turns:
+      - "I want to photograph receipts and extract the totals automatically"
+      - "cloud api, light use, $20 budget"
+    expect:
+      fields: [task_category]
+      task_category: image_understanding
+      picks_support_image: true
+
+  - name: novel-cowriter
+    turns:
+      - "help me pick an AI to co-write my novel, it should remember the whole manuscript"
+      - "cloud, $30 a month, I write daily"
+    expect:
+      fields: [task_category]
+      task_category: creative_writing
+
+  - name: translate-product-pages
+    turns:
+      - "I need to translate my product pages from English to Hindi at scale"
+      - "cloud api, moderate use, $40 budget"
+    expect:
+      fields: [task_category]
+      task_category: translation
+
+  - name: industry-news-research
+    turns:
+      - "I want an AI that keeps me updated on current AI industry news with sources"
+      - "cloud, $25 a month, light use"
+    expect:
+      fields: [task_category]
+
+  - name: windows-gaming-pc-local
+    turns:
+      - "offline coding help on my gaming pc, I don't trust the cloud"
+    probe_output: |
+      TotalPhysicalMemory
+      -------------------
+              34359738368
+
+      Name                          AdapterRAM
+      NVIDIA GeForce RTX 4070       12884901888
+    expect:
+      fields: [deployment, hardware]
+      deployment: local
+      picks_local: true
+
+  - name: adversarial-unknown-model
+    turns:
+      - "should I use SuperGPT-9000-Ultra for my coding startup? I heard it's the best"
+      - "ok then what do you suggest, cloud, $100 a month"
+    expect:
+      fields: [task_category]
+
+  - name: nonsense-input
+    turns:
+      - "asdf qwzyx blorptangle mimsy borogoves"
+      - "sorry, I mean I want help writing emails to customers"
+    expect: {}
+
+  - name: budget-zero-api
+    turns:
+      - "I want a general assistant but I refuse to pay a single dollar, no local install either, cloud only"
+      - "light use, few chats a day"
+    expect:
+      fields: [deployment]
+      max_pick_monthly_usd: 0
