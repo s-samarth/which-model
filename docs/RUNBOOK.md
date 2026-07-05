@@ -70,6 +70,10 @@ Embedding vectors cache in `data/kb_embeddings.json` keyed by content hash; edit
 
 The chat degrades cleanly: the user gets "I hit a problem talking to my reasoning model" plus the data age, and the session survives. Check `ollama ps`, restart with `ollama serve`. Slow first reply after idle is model load, not a bug. On fanless laptops, sustained sessions throttle; expect it.
 
+## Push rejected: remote has the scheduled data commit
+
+The refresh workflow commits to main daily, so local and remote diverge whenever you have unpushed work. This is normal, not a conflict: run `git pull --rebase origin main` then push. The workflow only touches `data/` and `ingestion/snapshots/`, so rebases apply cleanly unless you also changed those paths; if they do collide, take the remote's version of data files (`git checkout --theirs data/ ingestion/snapshots/`), it is the fresher refresh. Make `git pull --rebase` the habit before every push in this repo.
+
 ## Session weirdness
 
 Sessions are in-memory with a TTL (default 1h): a server restart or expiry silently starts fresh, which is acceptable v1 behavior. "Start over" in the UI does the same on demand.

@@ -127,6 +127,19 @@ def retrieve_kb(state: AgentState, retriever: Retriever, purpose: str) -> AgentS
         names.append("guides/gpu-hosting")
     if re.search(r"vllm|sglang|lm ?studio|ollama|serv(e|ing)|deploy|inference", msg, re.I):
         names.append("guides/serving-stacks")
+    if re.search(r"api.?key|sign.?up|account|openrouter|subscri", msg, re.I):
+        names.append("guides/getting-api-keys")
+    if re.search(r"openrouter", msg, re.I):
+        names.append("guides/using-openrouter")
+    if re.search(r"download|hugg?ing.?face|\bgguf\b|install|how (do|to).{0,20}run", msg, re.I):
+        names.append("guides/running-models-locally")
+    if re.search(r"buy|which (gpu|laptop|mac|machine)|upgrade|purchase", msg, re.I):
+        names.append("guides/hardware-landscape")
+    if re.search(r"\baws\b|azure|gcp|google cloud|bedrock|vertex|fireworks|together|groq|"
+                 r"cloud|managed endpoint", msg, re.I):
+        names.append("guides/cloud-inference-options")
+    if re.search(r"what'?s new|latest|these days|nowadays|trend", msg, re.I):
+        names.append("guides/inference-world-updates")
     if re.search(r"benchmark|score|leaderboard|elo|swe-?bench|livebench|hle\b", msg, re.I):
         names.append("guides/choosing-benchmarks")
     if re.search(r"\bmoe\b|mixture.of.experts|active param", msg, re.I):

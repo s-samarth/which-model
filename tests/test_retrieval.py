@@ -47,6 +47,12 @@ class TestSearch:
             ("what is a mixture of experts model", "guides/mixture-of-experts"),
             ("which benchmark should I trust for my task", "guides/choosing-benchmarks"),
             ("what is humanity's last exam HLE", "benchmarks/hle"),
+            ("how do I get an API key to start", "guides/getting-api-keys"),
+            ("what is openrouter and how do credits work", "guides/using-openrouter"),
+            ("download a gguf model from hugging face", "guides/running-models-locally"),
+            ("which GPU should I buy for AI", "guides/hardware-landscape"),
+            ("host on AWS bedrock or fireworks endpoint", "guides/cloud-inference-options"),
+            ("what's new in inference these days", "guides/inference-world-updates"),
         ],
     )
     def test_query_surfaces_right_doc(self, retriever, query, expected):

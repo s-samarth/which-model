@@ -1,5 +1,7 @@
 # Deployment
 
+This document covers development-grade setups (local Ollama, a GPU box, Docker). For taking the service to a public domain, including API-served brains (Fireworks, Azure, Bedrock, OpenRouter), subdomain and TLS steps, and monitoring, see [PRODUCTION.md](PRODUCTION.md).
+
 ## Local on macOS (the default path)
 
 ```bash

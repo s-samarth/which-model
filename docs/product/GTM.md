@@ -6,12 +6,12 @@ This is a free B2C utility in a world where everyone already has a chatbot. Nobo
 
 ## Why anyone would use this over Claude or ChatGPT
 
-The pitch is not "cheaper". It is "correct, current, and fit to you":
+The pitch is not "cheaper", and it is not "chatbots are stale" (they are not: ChatGPT and Claude ship with web search and can pull current pages). The honest differentiation is systematic versus ad-hoc:
 
-1. **Fresh, grounded data.** A chatbot recalls the market from training data; this queries a catalog refreshed daily and cites it. Ask both "what does GPT-5.4 cost per month for my usage" and only one gives a number that traces to a source.
-2. **Neutrality.** ChatGPT recommends OpenAI models with predictable enthusiasm. A recommender with no model to sell, visible data age, and cited scores is structurally more trustworthy. This is the entire brand.
-3. **Hardware fitting.** No chatbot asks you to paste your Mac's memory readout and then filters to models that physically fit with quantization math. This is the feature that makes people screenshot the product.
-4. **The answer format.** Cost-per-month math, benchmark explanation, setup commands, all in one streamed reply instead of a research session.
+1. **The whole market, not a few search hits.** A chatbot with web search grounds its answer in whichever handful of pages one query surfaced. This compares every model in a daily-refreshed catalog with consistent per-task scores and consistent cost math, every time. The difference shows on exactly the queries that matter: "cheapest model that fits my task and budget" is a database query, not a reading assignment.
+2. **Neutrality.** Each lab's harness structurally favors its own models; ChatGPT recommending OpenAI is not a bug, it is a conflict of interest. A recommender with no model to sell, visible data age, and cited scores is trustworthy by construction. This is the entire brand.
+3. **Hardware fitting.** No chatbot runs the "paste your Mac's memory readout" flow and filters to models that physically fit, with quantization math shown. This is the feature that makes people screenshot the product.
+4. **Consistency and verifiability.** Deterministic cost basis, named benchmarks with explanations, an eval gate asserting zero ungrounded model mentions. Chatbot answers to the same question vary run to run; this is a product whose answers can be audited.
 
 ## Ideal customer profiles, ranked by GTM leverage
 

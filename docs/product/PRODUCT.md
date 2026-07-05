@@ -10,7 +10,7 @@ Choosing an AI model in 2026 is a research project. There are 300+ commercially 
 
 Their current options all fail them:
 
-- **Asking ChatGPT or Claude**: training-data staleness, self-preference, and no live prices. A frontier chatbot will confidently recommend last year's models at wrong prices, and never says "actually, a 6GB model on your own laptop would do".
+- **Asking ChatGPT or Claude**: capable, and with web search they can be current, but the answer quality depends on which handful of pages one ad-hoc search happens to hit. They do not compare the whole market systematically, do not compute monthly cost from your usage, carry a structural self-preference (each lab's harness favors its own models), and never run the "paste your hardware readout" flow that ends in "actually, a 6GB model on your own laptop would do".
 - **Leaderboards** (LMArena, LiveBench, HLE): accurate but unreadable for non-experts, and they rank models in a vacuum with no notion of budget, hardware, or use case.
 - **Quiz/wizard sites**: static forms that cannot handle "honestly I am not sure" or "what if I hosted it myself?".
 
